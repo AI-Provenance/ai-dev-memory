@@ -1,0 +1,31 @@
+devmemory/commands/sync.py
+  4097f8f1253aa7b0 18-23
+devmemory/cli.py
+  4097f8f1253aa7b0 13-54
+devmemory/commands/search.py
+  4097f8f1253aa7b0 12-17
+devmemory/commands/status.py
+  4097f8f1253aa7b0 1-2,15
+devmemory/commands/install.py
+  4097f8f1253aa7b0 71-74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.1",
+  "base_commit_sha": "85e076fa75db903534341d9548d320f9e70b35c0",
+  "prompts": {
+    "4097f8f1253aa7b0": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "715a9e69-35a6-4956-98a2-6e32176cc6de",
+        "model": "claude-4.6-opus-high-thinking"
+      },
+      "human_author": "Shahriyar Rzayev <rzayev.sehriyar@gmail.com>",
+      "messages": [],
+      "total_additions": 63,
+      "total_deletions": 35,
+      "accepted_lines": 63,
+      "overriden_lines": 0
+    }
+  }
+}
