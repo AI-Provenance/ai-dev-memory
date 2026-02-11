@@ -1,0 +1,23 @@
+devmemory/core/memory_formatter.py
+  4097f8f1253aa7b0 101,106-107
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.1",
+  "base_commit_sha": "84dee11808034f04905aea7aea1d1c8b766b41d2",
+  "prompts": {
+    "4097f8f1253aa7b0": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "715a9e69-35a6-4956-98a2-6e32176cc6de",
+        "model": "claude-4.6-opus-high-thinking"
+      },
+      "human_author": "Shahriyar Rzayev <rzayev.sehriyar@gmail.com>",
+      "messages": [],
+      "total_additions": 4,
+      "total_deletions": 2,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    }
+  }
+}
