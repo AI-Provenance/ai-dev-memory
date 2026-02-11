@@ -1,0 +1,25 @@
+devmemory/commands/install.py
+  83fffa620a1a34bb 17
+devmemory/hooks/post_commit.py
+  83fffa620a1a34bb 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.1",
+  "base_commit_sha": "2452198b7957ca17f40253f8be6e21d13dc81f32",
+  "prompts": {
+    "83fffa620a1a34bb": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "eb6aff27-23a7-4ada-977c-f7432ffd8da7",
+        "model": "claude-4.6-opus-high-thinking"
+      },
+      "human_author": "Shahriyar Rzayev <rzayev.sehriyar@gmail.com>",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 2,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    }
+  }
+}
