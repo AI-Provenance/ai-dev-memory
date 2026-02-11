@@ -1,0 +1,27 @@
+devmemory/commands/sync.py
+  4097f8f1253aa7b0 72,80-81
+devmemory/core/git_ai_parser.py
+  4097f8f1253aa7b0 3-4,6,16-27,29-40,42,53-72,111-144,147,165,168-169,174,176,182-215,217-240,242-249,290,295-297,299-308,318-320,324-333
+devmemory/core/memory_formatter.py
+  4097f8f1253aa7b0 4-5,8-12,14-16,19-24,26,28-31,37,48-51,78-198,207,209-212,217-283,285-290,295,299-301,308,310-389,391-395,400,413-422,424-427,429,431-432,436,439
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.1",
+  "base_commit_sha": "4ccf7529bd4e7496722c5ab6164945594052a3e3",
+  "prompts": {
+    "4097f8f1253aa7b0": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "715a9e69-35a6-4956-98a2-6e32176cc6de",
+        "model": "claude-4.6-opus-high-thinking"
+      },
+      "human_author": "Shahriyar Rzayev <rzayev.sehriyar@gmail.com>",
+      "messages": [],
+      "total_additions": 547,
+      "total_deletions": 120,
+      "accepted_lines": 532,
+      "overriden_lines": 0
+    }
+  }
+}
