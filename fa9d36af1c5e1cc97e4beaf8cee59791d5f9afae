@@ -1,0 +1,35 @@
+.gitignore
+  d7754e7883ca3c40 19
+scripts/verify.sh
+  d7754e7883ca3c40 153-171
+devmemory/commands/context.py
+  d7754e7883ca3c40 1-285
+devmemory/cli.py
+  d7754e7883ca3c40 73-81
+devmemory/commands/install.py
+  d7754e7883ca3c40 22-29,57-82,85,87,102-105,162-165,167,180-181,184-186,188,190
+devmemory/rules/devmemory.mdc
+  d7754e7883ca3c40 188-190
+devmemory/rules/devmemory-context.mdc
+  d7754e7883ca3c40 1-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.2",
+  "base_commit_sha": "fa9d36af1c5e1cc97e4beaf8cee59791d5f9afae",
+  "prompts": {
+    "d7754e7883ca3c40": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "51f5320a-0ee6-4252-867d-8a8b5be3aacb",
+        "model": "claude-4.6-opus-high-thinking"
+      },
+      "human_author": "Shahriyar Rzayev <rzayev.sehriyar@gmail.com>",
+      "messages": [],
+      "total_additions": 390,
+      "total_deletions": 9,
+      "accepted_lines": 390,
+      "overriden_lines": 0
+    }
+  }
+}
