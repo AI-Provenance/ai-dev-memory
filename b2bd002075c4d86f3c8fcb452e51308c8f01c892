@@ -1,0 +1,29 @@
+devmemory/commands/search.py
+  d7754e7883ca3c40 1-2,5,8,11,15-163,165-166,173-180,188-189,204-205,209,218-219,221-223,225,227,229,231-245
+.env.example
+  d7754e7883ca3c40 4,10-13
+devmemory/cli.py
+  d7754e7883ca3c40 34-35,37,39
+devmemory/core/llm_client.py
+  d7754e7883ca3c40 1-119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.1",
+  "base_commit_sha": "b2bd002075c4d86f3c8fcb452e51308c8f01c892",
+  "prompts": {
+    "d7754e7883ca3c40": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "51f5320a-0ee6-4252-867d-8a8b5be3aacb",
+        "model": "claude-4.6-opus-high-thinking"
+      },
+      "human_author": "Shahriyar Rzayev <rzayev.sehriyar@gmail.com>",
+      "messages": [],
+      "total_additions": 364,
+      "total_deletions": 58,
+      "accepted_lines": 321,
+      "overriden_lines": 0
+    }
+  }
+}
