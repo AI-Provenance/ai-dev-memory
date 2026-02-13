@@ -1,0 +1,203 @@
+---
+description: DevMemory agent coordination — shared persistent memory across sessions and agents
+alwaysApply: true
+---
+
+# DevMemory: Shared Agent Memory
+
+You have access to a shared project memory via the `agent-memory` MCP server.
+This memory persists across all sessions and is shared between every agent working on this project.
+Use it as a **knowledgebase** (look up past decisions) and **coordination tool** (leave context for future sessions).
+
+The project also maintains **knowledge files** in `.devmemory/knowledge/*.md` — these are the canonical source of architecture decisions, conventions, and gotchas. You are responsible for keeping them up to date.
+
+## 1. Before Starting Any Task
+
+**Always search memory first.** Before writing code, look up what's already known:
+
+```
+search_long_term_memory(text="<describe what you're about to work on>")
+```
+
+Search for:
+- Past decisions related to your task
+- Known issues or gotchas in the area you're touching
+- Established patterns and conventions
+- Previous attempts that failed and why
+
+If your task involves a specific file or module, also search for it:
+```
+search_long_term_memory(text="<module or file name> issues and patterns")
+```
+
+Also **read the relevant knowledge files** before starting:
+- `.devmemory/knowledge/architecture.md` — architecture decisions and design rationale
+- `.devmemory/knowledge/gotchas.md` — known issues, workarounds, and pitfalls
+- Any other `.md` files in `.devmemory/knowledge/` relevant to your task
+
+Incorporate any relevant context into your approach. If a previous session already tried and rejected an approach, don't repeat it.
+
+## 2. After Making Significant Decisions
+
+You have two ways to persist knowledge, use the right one:
+
+### Quick capture: `devmemory add` (CLI)
+
+For a single discovery or decision during a session, run:
+```bash
+devmemory add "<what you learned>" --topic <topic> --entity <entity>
+```
+
+Use this for:
+- A gotcha you just hit and solved
+- An API quirk you discovered mid-task
+- A quick decision that doesn't need a full write-up
+
+### Structured knowledge: update `.devmemory/knowledge/` files
+
+For anything that future agents should know about, **update the knowledge files directly** and then sync:
+
+**When to update knowledge files:**
+- You made an architecture decision (add to `architecture.md`)
+- You discovered a gotcha or workaround (add to `gotchas.md`)
+- You established a new convention or pattern (add to `conventions.md` — create if needed)
+- You added/changed a major dependency and why
+- You fixed a non-obvious bug that could regress
+
+**How to update:**
+1. Edit the appropriate `.devmemory/knowledge/*.md` file (or create a new one)
+2. Add a new `## Section Heading` with the content
+3. Run `devmemory learn` to sync the updated files into the memory store
+
+**Format for knowledge files:**
+```markdown
+---
+topics: [architecture, decisions]
+entities: [Redis, AMS]
+---
+
+## Section Title
+Content explaining what, why, and any relevant details.
+Each ## section becomes a separate searchable memory.
+```
+
+**If no existing file fits, create a new one.** Good filenames:
+- `architecture.md` — why we chose X over Y, system design
+- `gotchas.md` — things that break if you're not careful
+- `conventions.md` — coding patterns and project rules
+- `api-notes.md` — external API quirks and limitations
+- `dependencies.md` — why we use specific libraries
+
+### Also store via MCP for immediate availability
+
+After updating knowledge files, also store via MCP so the memory is searchable immediately (before the next `devmemory learn` run):
+
+```
+create_long_term_memories(memories=[{
+    "text": "<what was decided and why>",
+    "memory_type": "semantic",
+    "topics": ["<relevant>", "<topics>"],
+    "entities": ["<technologies>", "<modules>"]
+}])
+```
+
+### What to store as memories
+
+| Store | Don't store |
+|-------|-------------|
+| Architecture decisions with rationale | Implementation details obvious from code |
+| Known gotchas and workarounds | Temporary debugging notes |
+| Bug root causes and how they were fixed | Things that change every commit |
+| Project conventions and patterns | Redundant copies of commit messages |
+| API quirks and limitations discovered | Personal preferences |
+| Why approach A was chosen over B | Simple variable renames or formatting |
+
+## 3. Keeping Knowledge Files Fresh
+
+**This is a core responsibility.** Treat `.devmemory/knowledge/` files like living documentation.
+
+### During every session, ask yourself:
+
+1. **Did I discover something non-obvious?** → Add to `gotchas.md`
+2. **Did I make a design choice between alternatives?** → Add to `architecture.md`
+3. **Did I establish or follow a pattern?** → Add to `conventions.md` (create if missing)
+4. **Is any existing knowledge file outdated?** → Update it
+
+### After updating knowledge files:
+
+Always run the sync to push changes into the memory store:
+```bash
+devmemory learn
+```
+
+### Periodic review
+
+If the session involved significant work (new features, refactors, bug fixes), review the knowledge files before finishing:
+- Read through `.devmemory/knowledge/` files you touched or that relate to your work
+- Update anything that's now wrong or incomplete
+- Add sections for new knowledge gained during the session
+- Run `devmemory learn` to sync
+
+## 4. Memory Types
+
+Use **`semantic`** for timeless facts and decisions:
+- Project conventions, architecture choices, API quirks
+- These answer "how do we do X?" and "why did we choose Y?"
+
+Use **`episodic`** for time-bound events (include `event_date`):
+- Migrations, incidents, major refactors
+- These answer "what happened?" and "when did we change X?"
+
+## 5. Session Coordination
+
+Use working memory to coordinate across active sessions:
+
+**At session start** — check if another session left context:
+```
+get_working_memory(session_id="project-coordination")
+```
+
+**When starting a large task** — announce what you're working on:
+```
+set_working_memory(
+    session_id="project-coordination",
+    memories=[{
+        "text": "Currently refactoring the search command to add LLM synthesis",
+        "memory_type": "semantic",
+        "topics": ["active-work"]
+    }]
+)
+```
+
+**When finishing** — clear or update the coordination state.
+
+## 6. Search Before You Reinvent
+
+If you're about to:
+- Add a new dependency → search if there's a reason we use something else
+- Change an API pattern → search for conventions
+- Fix a bug → search if it was fixed before and regressed
+- Refactor a module → search for known issues and design decisions
+
+The 30 seconds spent searching can save hours of rediscovering what a previous session already learned.
+
+## 7. Summary: The Knowledge Loop
+
+```
+Session Start
+  ├─ Run: devmemory context  (generates .devmemory/CONTEXT.md briefing)
+  ├─ Read .devmemory/CONTEXT.md for pre-built context
+  ├─ search_long_term_memory(text="<your task>") for deeper dives
+  ├─ Read relevant .devmemory/knowledge/*.md files
+  └─ get_working_memory(session_id="project-coordination")
+
+During Work
+  ├─ Hit a gotcha? → devmemory add "..." or update gotchas.md
+  ├─ Made a decision? → update architecture.md
+  └─ Established a pattern? → update conventions.md
+
+Session End
+  ├─ Review and update .devmemory/knowledge/ files
+  ├─ devmemory learn  (sync knowledge files to memory store)
+  └─ Update working memory coordination state
+```
