@@ -81,7 +81,49 @@ You get:
   - Relevant per‑file code snippets
   - The original prompts that drove the changes
 
+Sample search result:
+
+```
+$ devmemory search "why we use redis memory server instead of other databases?"
+
+Searching for: why we use redis memory server instead of other databases?
+Synthesizing answer...
+
+╭────────────────────────────────────────────────────────────── Answer ───────────────────────────────────────────────────────────────╮
+│                                                                                                                                     │
+│  Short answer: because Redis Agent Memory Server (AMS) already provides the exact semantic-memory features we need (embeddings,     │
+│  topic extraction, NER, deduplication) while being battle‑tested infra, so it reduces operational complexity and keeps the CLI      │
+│  lightweight.                                                                                                                       │
+│                                                                                                                                     │
+│  Details / evidence from the repo:                                                                                                  │
+│                                                                                                                                     │
+│   • AMS handles embeddings, topic extraction and NER internally and provides built‑in memory deduplication (see                     │
+│     .devmemory/knowledge/architecture.md, commit b0abbb04ad13).                                                                     │
+│   • The same AMS image serves both REST (port 8000) and MCP (port 9050) endpoints used by the CLI (see docker-compose.yml and       │
+│     ams_client.py; feature enable commit f025d01e107c).                                                                             │
+│   • README and ams_client.py show we store semantic vectors in Redis AMS and call its /v1/long-term-memory APIs, avoiding the need  │
+│     to run a separate vector DB (README.md commit 2b7602a5318a and devmemory/core/ams_client.py).                                   │
+│                                                                                                                                     │
+╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+Sources (10 relevant, 20 filtered out)
+
+ #    Score    Type        Source                                                                      
+ 1    0.302    semantic    Why Redis Agent Memory Server                                               
+ 2    0.614    semantic    Memory Types and Their Purpose                                              
+ 3    0.613    semantic    feat: enable devmemory CLI with redis AMS and git-ai (f025d01e107c)         
+ 4    0.641    semantic    feat: add more metadata from the session to the memory (4ccf7529bd4e)       
+ 5    0.671    semantic    fix: use the --quite to show the one line update (139d559bdaa0)             
+ 6    0.677    semantic    Fix: terminal hang issue and the correct saved memories coun (daf56666f1f1) 
+ 7    0.512    episodic    .devmemory/knowledge/architecture.md (b0abbb04ad13)                         
+ 8    0.550    episodic    devmemory/core/ams_client.py (f025d01e107c)                                 
+ 9    0.588    episodic    README.md (2b7602a5318a)                                                    
+ 10   0.561    episodic    docker-compose.yml (f025d01e107c)                    
+```
+
 > Drop in a GIF: `docs/demo.gif` — terminal recording of `status → commit → sync → search`.
+
+![auto-sync.gif](./docs/auto-sync.gif)
 
 ---
 
