@@ -1,6 +1,6 @@
 # DevMemory 🚀🧠
 
-[![CI](https://github.com/devmemory/devmemory/actions/workflows/ci.yml/badge.svg)](https://github.com/devmemory/devmemory/actions/workflows/ci.yml)
+[![CI](https://github.com/AI-Provenance/ai-dev-memory/actions/workflows/ci.yml/badge.svg)](https://github.com/AI-Provenance/ai-dev-memory/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/devmemory.svg)](https://pypi.org/project/devmemory/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
