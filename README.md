@@ -121,7 +121,7 @@ Sources (10 relevant, 20 filtered out)
  10   0.561    episodic    docker-compose.yml (f025d01e107c)                    
 ```
 
-> Drop in a GIF: `docs/demo.gif` — terminal recording of `status → commit → sync → search`.
+Auto-sync example:
 
 ![auto-sync.gif](./docs/auto-sync.gif)
 
