@@ -7,7 +7,7 @@
 > **TL;DR**: DevMemory is a long‑term memory for your AI coding agents.  
 > It remembers *why* code was written, *how* it changed, and *what* your team learned — then feeds that back into your agents. No more “reinvent the bug” speedruns. 🐛🔥
 
-Built on [Git AI](https://usegitai.com/) for silent capture and [Redis Agent Memory Server](https://github.com/redis/agent-memory-server) for semantic search and recall.
+Built on [Git AI](https://github.com/git-ai-project/git-ai) for silent capture and [Redis Agent Memory Server](https://github.com/redis/agent-memory-server) for semantic search and recall.
 
 ---
 
