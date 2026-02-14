@@ -71,21 +71,27 @@ def run_status():
     if repo_root:
         main_rule = pathlib.Path(repo_root) / ".cursor" / "rules" / "devmemory.mdc"
         context_rule = pathlib.Path(repo_root) / ".cursor" / "rules" / "devmemory-context.mdc"
-        
+
         main_ok = main_rule.exists()
         context_ok = context_rule.exists()
-        
+
         if main_ok and context_ok:
             main_content = main_rule.read_text()
-            has_always_apply = "alwaysApply: true" in main_content
-            has_mcp_refs = "agent-memory" in main_content and "search_long_term_memory" in main_content
-            
-            if has_always_apply and has_mcp_refs:
+            main_always_apply = "alwaysApply: true" in main_content
+            main_mcp_refs = "agent-memory" in main_content and "search_long_term_memory" in main_content
+
+            context_content = context_rule.read_text()
+            context_always_apply = "alwaysApply: true" in context_content
+            context_marker = "CONTEXT.md" in context_content and "devmemory context" in context_content
+
+            if main_always_apply and main_mcp_refs and context_always_apply and context_marker:
                 table.add_row("Cursor rules", "[green]installed[/green] (devmemory.mdc, devmemory-context.mdc)")
-            elif has_always_apply:
-                table.add_row("Cursor rules", "[yellow]installed but may be outdated[/yellow]")
+            elif not (context_always_apply and context_marker):
+                table.add_row("Cursor rules", "[yellow]context rule outdated or missing alwaysApply[/yellow] (run: devmemory install)")
+            elif not (main_always_apply and main_mcp_refs):
+                table.add_row("Cursor rules", "[yellow]main rule outdated or missing alwaysApply[/yellow] (run: devmemory install)")
             else:
-                table.add_row("Cursor rules", "[yellow]installed but missing alwaysApply[/yellow]")
+                table.add_row("Cursor rules", "[yellow]installed but may be outdated[/yellow]")
         elif main_ok:
             table.add_row("Cursor rules", "[yellow]partially installed[/yellow] (missing context rule)")
         else:
