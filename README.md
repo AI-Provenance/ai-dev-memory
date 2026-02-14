@@ -192,6 +192,14 @@ devmemory search "auth" --raw        # Raw results without LLM synthesis
 devmemory status                     # Show system health, sync state, hooks
 ```
 
+### Code archaeology 🔍
+
+```bash
+devmemory why src/auth.py            # Explain why a file exists and how it evolved
+devmemory why src/auth.py login      # Focus on a specific function or class
+devmemory why src/auth.py --raw      # Show raw memories and git history without synthesis
+```
+
 ### Knowledge management 📚
 
 ```bash

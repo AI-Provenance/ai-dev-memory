@@ -80,6 +80,18 @@ def context(
 
 
 @app.command()
+def why(
+    filepath: str = typer.Argument(..., help="File path relative to repo root (e.g. src/auth.py)."),
+    function: str = typer.Argument("", help="Optional function or class name to focus on."),
+    limit: int = typer.Option(15, "--limit", "-n", help="Max memories to use for synthesis."),
+    raw: bool = typer.Option(False, "--raw", help="Show raw memories and git history without LLM synthesis."),
+):
+    """Explain why a file (or function) exists and how it evolved."""
+    from devmemory.commands.why import run_why
+    run_why(filepath=filepath, function=function, limit=limit, raw=raw)
+
+
+@app.command()
 def install(
     skip_hook: bool = typer.Option(False, "--skip-hook", help="Skip post-commit hook installation."),
     skip_mcp: bool = typer.Option(False, "--skip-mcp", help="Skip Cursor MCP config."),
