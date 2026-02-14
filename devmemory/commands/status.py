@@ -68,4 +68,27 @@ def run_status():
     else:
         table.add_row("Cursor MCP config", "[yellow]not configured[/yellow] (run: devmemory install)")
 
+    if repo_root:
+        main_rule = pathlib.Path(repo_root) / ".cursor" / "rules" / "devmemory.mdc"
+        context_rule = pathlib.Path(repo_root) / ".cursor" / "rules" / "devmemory-context.mdc"
+        
+        main_ok = main_rule.exists()
+        context_ok = context_rule.exists()
+        
+        if main_ok and context_ok:
+            main_content = main_rule.read_text()
+            has_always_apply = "alwaysApply: true" in main_content
+            has_mcp_refs = "agent-memory" in main_content and "search_long_term_memory" in main_content
+            
+            if has_always_apply and has_mcp_refs:
+                table.add_row("Cursor rules", "[green]installed[/green] (devmemory.mdc, devmemory-context.mdc)")
+            elif has_always_apply:
+                table.add_row("Cursor rules", "[yellow]installed but may be outdated[/yellow]")
+            else:
+                table.add_row("Cursor rules", "[yellow]installed but missing alwaysApply[/yellow]")
+        elif main_ok:
+            table.add_row("Cursor rules", "[yellow]partially installed[/yellow] (missing context rule)")
+        else:
+            table.add_row("Cursor rules", "[yellow]not installed[/yellow] (run: devmemory install)")
+
     console.print(table)
