@@ -94,8 +94,17 @@ curl -sf -X DELETE "http://localhost:8000/v1/long-term-memory?memory_ids=$TEST_I
 
 echo ""
 echo "Git AI:"
-if command -v git-ai &>/dev/null || git ai version &>/dev/null 2>&1; then
-    VERSION=$(git-ai version 2>/dev/null || git ai version 2>/dev/null || echo "unknown")
+GIT_AI_BIN=""
+if command -v git-ai &>/dev/null; then
+    GIT_AI_BIN="git-ai"
+elif [ -x "$HOME/.git-ai/bin/git-ai" ]; then
+    GIT_AI_BIN="$HOME/.git-ai/bin/git-ai"
+elif git ai version &>/dev/null 2>&1; then
+    GIT_AI_BIN="git ai"
+fi
+
+if [ -n "$GIT_AI_BIN" ]; then
+    VERSION=$($GIT_AI_BIN version 2>/dev/null || echo "unknown")
     pass "Git AI installed: $VERSION"
 else
     skip "Git AI is not installed (optional for basic testing)"
@@ -106,7 +115,7 @@ echo "DevMemory CLI:"
 if command -v devmemory &>/dev/null; then
     pass "devmemory CLI is installed"
 else
-    skip "devmemory CLI not on PATH (install with: pip install -e .)"
+    skip "devmemory CLI not on PATH (install with: uv tool install --editable .)"
 fi
 
 echo ""
