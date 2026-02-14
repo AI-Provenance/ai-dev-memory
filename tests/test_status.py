@@ -1,7 +1,5 @@
 from pathlib import Path
 
-import pytest
-
 from devmemory.commands.status import get_cursor_rules_status
 
 VALID_MAIN = """---
@@ -68,7 +66,8 @@ def test_cursor_rules_context_rule_outdated_missing_always_apply(tmp_path):
     context_bad = VALID_CONTEXT.replace("alwaysApply: true", "alwaysApply: false")
     (rules / "devmemory-context.mdc").write_text(context_bad)
     status = get_cursor_rules_status(tmp_path)
-    assert "context rule outdated or missing alwaysApply" in status
+    assert "context rule outdated or missing required content" in status
+    assert "alwaysApply" in status and "CONTEXT markers" in status
 
 
 def test_cursor_rules_context_rule_outdated_missing_marker(tmp_path):
@@ -77,7 +76,8 @@ def test_cursor_rules_context_rule_outdated_missing_marker(tmp_path):
     context_bad = "---\nalwaysApply: true\n---\n\nGeneric rule with no expected marker strings."
     (rules / "devmemory-context.mdc").write_text(context_bad)
     status = get_cursor_rules_status(tmp_path)
-    assert "context rule outdated or missing alwaysApply" in status
+    assert "context rule outdated or missing required content" in status
+    assert "alwaysApply" in status and "CONTEXT markers" in status
 
 
 def test_cursor_rules_main_rule_outdated_missing_always_apply(tmp_path):
@@ -86,7 +86,8 @@ def test_cursor_rules_main_rule_outdated_missing_always_apply(tmp_path):
     (rules / "devmemory.mdc").write_text(main_bad)
     (rules / "devmemory-context.mdc").write_text(VALID_CONTEXT)
     status = get_cursor_rules_status(tmp_path)
-    assert "main rule outdated or missing alwaysApply" in status
+    assert "main rule outdated or missing required content" in status
+    assert "alwaysApply" in status and "MCP refs" in status
 
 
 def test_cursor_rules_main_rule_outdated_missing_mcp_refs(tmp_path):
@@ -99,6 +100,29 @@ Generic rule with no MCP references.
     (rules / "devmemory.mdc").write_text(main_bad)
     (rules / "devmemory-context.mdc").write_text(VALID_CONTEXT)
     status = get_cursor_rules_status(tmp_path)
-    assert "main rule outdated or missing alwaysApply" in status
+    assert "main rule outdated or missing required content" in status
+    assert "alwaysApply" in status and "MCP refs" in status
+
+
+def test_cursor_rules_unreadable_returns_safe_status(tmp_path):
+    rules = _rules_dir(tmp_path)
+    (rules / "devmemory.mdc").write_text(VALID_MAIN)
+    (rules / "devmemory-context.mdc").write_text(VALID_CONTEXT)
+    (rules / "devmemory-context.mdc").chmod(0o000)
+    try:
+        status = get_cursor_rules_status(tmp_path)
+        assert "[yellow]rules unreadable or invalid[/yellow]" in status
+        assert "run: devmemory install" in status
+    finally:
+        (rules / "devmemory-context.mdc").chmod(0o600)
+
+
+def test_cursor_rules_non_utf8_returns_safe_status(tmp_path):
+    rules = _rules_dir(tmp_path)
+    (rules / "devmemory.mdc").write_text(VALID_MAIN)
+    (rules / "devmemory-context.mdc").write_bytes(b"---\nalwaysApply: true\n---\n\n\x80\x81\xfe\xff")
+    status = get_cursor_rules_status(tmp_path)
+    assert "[yellow]rules unreadable or invalid[/yellow]" in status
+    assert "run: devmemory install" in status
 
 

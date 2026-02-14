@@ -23,21 +23,24 @@ def get_cursor_rules_status(repo_root: pathlib.Path) -> str:
     context_ok = context_rule.exists()
 
     if main_ok and context_ok:
-        main_content = main_rule.read_text()
+        try:
+            main_content = main_rule.read_text(encoding="utf-8")
+            context_content = context_rule.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            return "[yellow]rules unreadable or invalid[/yellow] (run: devmemory install)"
+
         main_always_apply = "alwaysApply: true" in main_content
         main_mcp_refs = "agent-memory" in main_content and "search_long_term_memory" in main_content
 
-        context_content = context_rule.read_text()
         context_always_apply = "alwaysApply: true" in context_content
         context_marker = "CONTEXT.md" in context_content and "devmemory context" in context_content
 
         if main_always_apply and main_mcp_refs and context_always_apply and context_marker:
             return "[green]installed[/green] (devmemory.mdc, devmemory-context.mdc)"
         if not (context_always_apply and context_marker):
-            return "[yellow]context rule outdated or missing alwaysApply[/yellow] (run: devmemory install)"
+            return "[yellow]context rule outdated or missing required content (alwaysApply, CONTEXT markers)[/yellow] (run: devmemory install)"
         if not (main_always_apply and main_mcp_refs):
-            return "[yellow]main rule outdated or missing alwaysApply[/yellow] (run: devmemory install)"
-        return "[yellow]installed but may be outdated[/yellow]"
+            return "[yellow]main rule outdated or missing required content (alwaysApply, MCP refs)[/yellow] (run: devmemory install)"
     if main_ok:
         return "[yellow]partially installed[/yellow] (missing context rule)"
     if context_ok:
