@@ -2,13 +2,20 @@
 
 ### Development setup
 
-- Clone the repository and create a virtualenv.
+- Clone the repository.
 - Copy `.env.example` to `.env` and set `OPENAI_API_KEY`.
 - Start the local stack with `make up`.
 - Install the package in editable mode with dev extras:
 
 ```bash
-pip install -e .[dev]
+uv tool install --editable .
+```
+
+Or if you prefer a virtual environment for development:
+
+```bash
+uv venv
+uv pip install -e .[dev]
 ```
 
 ### Running tests and linting
@@ -42,4 +49,3 @@ ruff check .
   - Add or update tests when changing behavior.
   - Ensure `pytest` passes locally.
   - Keep commits focused and descriptive.
-

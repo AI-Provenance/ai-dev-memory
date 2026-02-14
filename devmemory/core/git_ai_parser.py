@@ -180,7 +180,7 @@ def parse_ai_note(raw_note: str) -> list[FileAttribution]:
 
 
 def get_prompt_data(prompt_id: str, commit_sha: str | None = None) -> PromptData | None:
-    cmd = ["git-ai", "show-prompt", prompt_id]
+    cmd = _git_ai_prefix() + ["show-prompt", prompt_id]
     if commit_sha:
         cmd.extend(["--commit", commit_sha])
 
@@ -215,7 +215,7 @@ def get_prompt_data(prompt_id: str, commit_sha: str | None = None) -> PromptData
 
 
 def get_commit_stats(sha: str) -> CommitStats | None:
-    cmd = ["git-ai", "stats", sha, "--json"]
+    cmd = _git_ai_prefix() + ["stats", sha, "--json"]
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
     except (subprocess.CalledProcessError, FileNotFoundError):
@@ -333,30 +333,49 @@ def get_latest_commit_note() -> CommitNote | None:
     return _build_commit_note(commits[0])
 
 
-def is_git_ai_installed() -> bool:
-    try:
-        result = subprocess.run(
-            ["git-ai", "version"],
-            capture_output=True, text=True,
-        )
-        return result.returncode == 0
-    except FileNotFoundError:
-        try:
-            result = subprocess.run(
-                ["git", "ai", "version"],
-                capture_output=True, text=True,
-            )
-            return result.returncode == 0
-        except FileNotFoundError:
-            return False
-
-
-def get_git_ai_version() -> str:
-    for cmd in [["git-ai", "version"], ["git", "ai", "version"]]:
+def _resolve_git_ai() -> list[str] | None:
+    """Find a working git-ai command: PATH, well-known install dir, or git subcommand."""
+    candidates = [
+        ["git-ai", "version"],
+        [os.path.expanduser("~/.git-ai/bin/git-ai"), "version"],
+        ["git", "ai", "version"],
+    ]
+    for cmd in candidates:
         try:
             result = subprocess.run(cmd, capture_output=True, text=True)
             if result.returncode == 0:
-                return result.stdout.strip()
+                return cmd[:-1]  # return without the "version" arg
         except FileNotFoundError:
             continue
+    return None
+
+
+# Cache the result so we don't probe on every call
+_git_ai_cmd_prefix: list[str] | None = None
+_git_ai_resolved = False
+
+
+def _git_ai_prefix() -> list[str]:
+    """Return the command prefix for git-ai (cached after first lookup)."""
+    global _git_ai_cmd_prefix, _git_ai_resolved
+    if not _git_ai_resolved:
+        _git_ai_cmd_prefix = _resolve_git_ai()
+        _git_ai_resolved = True
+    return _git_ai_cmd_prefix or ["git-ai"]
+
+
+def is_git_ai_installed() -> bool:
+    return _resolve_git_ai() is not None
+
+
+def get_git_ai_version() -> str:
+    prefix = _resolve_git_ai()
+    if not prefix:
+        return "not installed"
+    try:
+        result = subprocess.run(prefix + ["version"], capture_output=True, text=True)
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except FileNotFoundError:
+        pass
     return "not installed"

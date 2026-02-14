@@ -145,10 +145,10 @@ bash scripts/install.sh
 
 This script:
 
-- Checks Docker / Python / Git AI
+- Checks Docker / Python / Git AI and verifies the Docker daemon is running
+- Installs [uv](https://docs.astral.sh/uv/) if not present, then installs the `devmemory` CLI via `uv tool install`
 - Sets up `.env` from `.env.example`
 - Starts Redis + AMS + MCP via Docker
-- Installs the `devmemory` CLI
 - Configures git hooks + Cursor MCP + agent rules in the current repo
 
 ### Manual Setup
@@ -164,8 +164,8 @@ cp .env.example .env
 # Start the stack
 make up
 
-# Install the CLI
-pip install -e .
+# Install the CLI (requires uv: https://docs.astral.sh/uv/)
+uv tool install --editable .
 
 # Set up hooks, MCP config, and Cursor rules in your project
 cd /path/to/your/project

@@ -19,11 +19,13 @@ step "DevMemory Setup"
 echo "This script will:"
 echo "  1. Check prerequisites (git, docker, python3)"
 echo "  2. Install Git AI (if not present)"
-echo "  3. Install devmemory CLI"
+echo "  3. Install devmemory CLI (via uv)"
 echo "  4. Set up .env file"
 echo "  5. Start the Docker stack"
 echo "  6. Configure git hooks, Cursor MCP, and agent coordination rules"
 echo ""
+
+# ── Step 1: Prerequisites ──────────────────────────────────────────────────────
 
 step "[1/6] Checking prerequisites..."
 
@@ -38,6 +40,34 @@ if ! command -v docker &>/dev/null; then
     exit 1
 fi
 info "docker $(docker --version | awk '{print $3}' | tr -d ',')"
+
+if ! docker info &>/dev/null 2>&1; then
+    error "Docker daemon is not running."
+    echo ""
+    case "$(uname -s)" in
+        Darwin)
+            echo "  Start Docker Desktop:"
+            echo "    open -a Docker"
+            ;;
+        Linux)
+            if grep -qi microsoft /proc/version 2>/dev/null; then
+                echo "  You appear to be on WSL. Start Docker Desktop from Windows,"
+                echo "  or enable the WSL integration in Docker Desktop settings."
+            else
+                echo "  Start the Docker service:"
+                echo "    sudo systemctl start docker"
+            fi
+            ;;
+        *)
+            echo "  Please start Docker Desktop or the Docker service."
+            ;;
+    esac
+    echo ""
+    echo "  Then re-run:"
+    echo "    $0"
+    exit 1
+fi
+info "docker daemon is running"
 
 if ! docker compose version &>/dev/null 2>&1; then
     error "docker compose is not available"
@@ -64,9 +94,20 @@ if [ -z "$PYTHON_CMD" ]; then
 fi
 info "$PYTHON_CMD $($PYTHON_CMD --version 2>&1 | awk '{print $2}')"
 
+# ── Step 2: Git AI ─────────────────────────────────────────────────────────────
+
 step "[2/6] Checking Git AI..."
 
-if command -v git-ai &>/dev/null || git ai version &>/dev/null 2>&1; then
+GIT_AI_BIN=""
+if command -v git-ai &>/dev/null; then
+    GIT_AI_BIN="git-ai"
+elif [ -x "$HOME/.git-ai/bin/git-ai" ]; then
+    GIT_AI_BIN="$HOME/.git-ai/bin/git-ai"
+elif git ai version &>/dev/null 2>&1; then
+    GIT_AI_BIN="git ai"
+fi
+
+if [ -n "$GIT_AI_BIN" ]; then
     info "Git AI is already installed"
 else
     warn "Git AI is not installed"
@@ -82,24 +123,45 @@ else
     fi
 fi
 
-step "[3/6] Installing devmemory CLI..."
+# ── Step 3: Install devmemory CLI via uv ───────────────────────────────────────
 
-if command -v pip &>/dev/null || command -v pip3 &>/dev/null; then
-    PIP_CMD="pip3"
-    command -v pip3 &>/dev/null || PIP_CMD="pip"
-else
-    PIP_CMD="$PYTHON_CMD -m pip"
-fi
+step "[3/6] Installing devmemory CLI..."
 
 cd "$SCRIPT_DIR"
 
-if command -v pipx &>/dev/null; then
-    pipx install -e "$SCRIPT_DIR" --force 2>/dev/null && info "devmemory installed via pipx" || {
-        $PIP_CMD install -e "$SCRIPT_DIR" && info "devmemory installed via pip"
-    }
+# Install uv if not present
+if ! command -v uv &>/dev/null; then
+    echo "Installing uv package manager..."
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    # Source the env so uv is available immediately
+    export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+    if ! command -v uv &>/dev/null; then
+        error "Failed to install uv. Install manually: https://docs.astral.sh/uv/getting-started/installation/"
+        exit 1
+    fi
+    info "uv installed"
 else
-    $PIP_CMD install -e "$SCRIPT_DIR" && info "devmemory installed via pip"
+    info "uv $(uv --version | awk '{print $2}')"
 fi
+
+uv tool install --editable "$SCRIPT_DIR" --force --quiet
+uv tool update-shell --quiet 2>/dev/null || true
+info "devmemory installed"
+
+# Ensure devmemory is on PATH for the rest of this script
+if ! command -v devmemory &>/dev/null; then
+    export PATH="$HOME/.local/bin:$PATH"
+fi
+
+if ! command -v devmemory &>/dev/null; then
+    error "devmemory not found on PATH after install."
+    echo "  Try opening a new terminal, or run:"
+    echo "    export PATH=\"\$HOME/.local/bin:\$PATH\""
+    exit 1
+fi
+info "devmemory is on PATH"
+
+# ── Step 4: Environment ────────────────────────────────────────────────────────
 
 step "[4/6] Setting up environment..."
 
@@ -112,19 +174,21 @@ if [ ! -f "$ENV_FILE" ]; then
         echo ""
         read -p "Enter your OpenAI API key (or press Enter to skip): " api_key
         if [ -n "$api_key" ]; then
-            sed -i "s/your_openai_api_key_here/$api_key/" "$ENV_FILE"
+            sed -i.bak "s/your_openai_api_key_here/$api_key/" "$ENV_FILE" && rm -f "$ENV_FILE.bak"
             info "API key saved to .env"
         else
             warn "No API key set. Edit .env before starting the stack."
             warn "Memories won't be processed without an OpenAI API key."
         fi
     else
-        sed -i "s/your_openai_api_key_here/$OPENAI_API_KEY/" "$ENV_FILE"
+        sed -i.bak "s/your_openai_api_key_here/$OPENAI_API_KEY/" "$ENV_FILE" && rm -f "$ENV_FILE.bak"
         info "API key set from OPENAI_API_KEY environment variable"
     fi
 else
     info ".env file already exists"
 fi
+
+# ── Step 5: Docker stack ───────────────────────────────────────────────────────
 
 step "[5/6] Starting Docker stack..."
 
@@ -148,6 +212,8 @@ done
 if curl -sf http://localhost:6379 >/dev/null 2>&1 || docker compose exec -T redis redis-cli ping 2>/dev/null | grep -q PONG; then
     info "Redis is healthy"
 fi
+
+# ── Step 6: Configure hooks, MCP, agent rules ─────────────────────────────────
 
 step "[6/6] Configuring hooks, MCP, and agent rules..."
 

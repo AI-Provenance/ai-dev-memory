@@ -22,7 +22,7 @@ setup:
 	@bash scripts/install.sh
 
 build:
-	.venv/bin/python -m build
+	uv build
 
 publish:
-	.venv/bin/twine upload dist/*
+	uv publish
