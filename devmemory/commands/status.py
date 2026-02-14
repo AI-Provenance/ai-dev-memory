@@ -11,6 +11,39 @@ from devmemory import __version__
 
 console = Console()
 
+MAIN_RULE_NAME = "devmemory.mdc"
+CONTEXT_RULE_NAME = "devmemory-context.mdc"
+
+
+def get_cursor_rules_status(repo_root: pathlib.Path) -> str:
+    main_rule = repo_root / ".cursor" / "rules" / MAIN_RULE_NAME
+    context_rule = repo_root / ".cursor" / "rules" / CONTEXT_RULE_NAME
+
+    main_ok = main_rule.exists()
+    context_ok = context_rule.exists()
+
+    if main_ok and context_ok:
+        main_content = main_rule.read_text()
+        main_always_apply = "alwaysApply: true" in main_content
+        main_mcp_refs = "agent-memory" in main_content and "search_long_term_memory" in main_content
+
+        context_content = context_rule.read_text()
+        context_always_apply = "alwaysApply: true" in context_content
+        context_marker = "CONTEXT.md" in context_content and "devmemory context" in context_content
+
+        if main_always_apply and main_mcp_refs and context_always_apply and context_marker:
+            return "[green]installed[/green] (devmemory.mdc, devmemory-context.mdc)"
+        if not (context_always_apply and context_marker):
+            return "[yellow]context rule outdated or missing alwaysApply[/yellow] (run: devmemory install)"
+        if not (main_always_apply and main_mcp_refs):
+            return "[yellow]main rule outdated or missing alwaysApply[/yellow] (run: devmemory install)"
+        return "[yellow]installed but may be outdated[/yellow]"
+    if main_ok:
+        return "[yellow]partially installed[/yellow] (missing context rule)"
+    if context_ok:
+        return "[yellow]partially installed[/yellow] (missing main rule)"
+    return "[yellow]not installed[/yellow] (run: devmemory install)"
+
 
 def run_status():
     config = DevMemoryConfig.load()
@@ -69,34 +102,6 @@ def run_status():
         table.add_row("Cursor MCP config", "[yellow]not configured[/yellow] (run: devmemory install)")
 
     if repo_root:
-        main_rule = pathlib.Path(repo_root) / ".cursor" / "rules" / "devmemory.mdc"
-        context_rule = pathlib.Path(repo_root) / ".cursor" / "rules" / "devmemory-context.mdc"
-
-        main_ok = main_rule.exists()
-        context_ok = context_rule.exists()
-
-        if main_ok and context_ok:
-            main_content = main_rule.read_text()
-            main_always_apply = "alwaysApply: true" in main_content
-            main_mcp_refs = "agent-memory" in main_content and "search_long_term_memory" in main_content
-
-            context_content = context_rule.read_text()
-            context_always_apply = "alwaysApply: true" in context_content
-            context_marker = "CONTEXT.md" in context_content and "devmemory context" in context_content
-
-            if main_always_apply and main_mcp_refs and context_always_apply and context_marker:
-                table.add_row("Cursor rules", "[green]installed[/green] (devmemory.mdc, devmemory-context.mdc)")
-            elif not (context_always_apply and context_marker):
-                table.add_row("Cursor rules", "[yellow]context rule outdated or missing alwaysApply[/yellow] (run: devmemory install)")
-            elif not (main_always_apply and main_mcp_refs):
-                table.add_row("Cursor rules", "[yellow]main rule outdated or missing alwaysApply[/yellow] (run: devmemory install)")
-            else:
-                table.add_row("Cursor rules", "[yellow]installed but may be outdated[/yellow]")
-        elif main_ok:
-            table.add_row("Cursor rules", "[yellow]partially installed[/yellow] (missing context rule)")
-        elif context_ok:
-            table.add_row("Cursor rules", "[yellow]partially installed[/yellow] (missing main rule)")
-        else:
-            table.add_row("Cursor rules", "[yellow]not installed[/yellow] (run: devmemory install)")
+        table.add_row("Cursor rules", get_cursor_rules_status(pathlib.Path(repo_root)))
 
     console.print(table)
