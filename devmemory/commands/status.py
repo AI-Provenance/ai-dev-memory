@@ -94,6 +94,8 @@ def run_status():
                 table.add_row("Cursor rules", "[yellow]installed but may be outdated[/yellow]")
         elif main_ok:
             table.add_row("Cursor rules", "[yellow]partially installed[/yellow] (missing context rule)")
+        elif context_ok:
+            table.add_row("Cursor rules", "[yellow]partially installed[/yellow] (missing main rule)")
         else:
             table.add_row("Cursor rules", "[yellow]not installed[/yellow] (run: devmemory install)")
 
