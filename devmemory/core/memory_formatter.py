@@ -179,7 +179,7 @@ def _format_prompt_messages(messages: list[dict], max_chars: int = MAX_PROMPT_ME
     total = 0
 
     for msg in messages:
-        role = msg.get("role") or msg.get("type", "user")
+        role = (msg.get("role") or msg.get("type", "user")).lower()
         content = msg.get("content") or msg.get("text", "")
         if isinstance(content, list):
             content = " ".join(
@@ -188,7 +188,8 @@ def _format_prompt_messages(messages: list[dict], max_chars: int = MAX_PROMPT_ME
             )
         if not content:
             continue
-        text = f"[{role}]: {content}"
+        label = "User" if role == "user" else "Assistant" if role == "assistant" else role
+        text = f"{label}: {content}"
         if total + len(text) > max_chars:
             remaining = max_chars - total
             if remaining > 50:
@@ -357,6 +358,7 @@ def format_commit_as_memories(
         })
         idx += 1
 
+    seen_prompt_content: set[str] = set()
     for pid, pd in commit.prompts.items():
         if not pd.messages:
             continue
@@ -364,6 +366,11 @@ def format_commit_as_memories(
         formatted_messages = _format_prompt_messages(pd.messages)
         if not formatted_messages.strip():
             continue
+
+        content_key = formatted_messages.strip()[:2000]
+        if content_key in seen_prompt_content:
+            continue
+        seen_prompt_content.add(content_key)
 
         agent_str = f"{pd.tool}/{pd.model}" if pd.model else (pd.tool or "unknown")
 
