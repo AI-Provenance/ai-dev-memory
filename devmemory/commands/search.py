@@ -14,6 +14,21 @@ console = Console()
 
 DEFAULT_THRESHOLD = 0.75
 
+RECENCY_WORDS = ("recent", "latest", "last", "newest")
+
+
+def _query_wants_recency(query: str) -> bool:
+    q = query.lower()
+    return any(w in q for w in RECENCY_WORDS)
+
+
+def _sort_by_recency(results: list[MemoryResult]) -> list[MemoryResult]:
+    def key(r: MemoryResult) -> tuple:
+        created = (r.created_at or "").strip()
+        return (0 if created else 1, created)
+
+    return sorted(results, key=key, reverse=True)
+
 
 def _extract_source_label(result: MemoryResult) -> str:
     text = result.text
@@ -45,7 +60,7 @@ def _extract_source_label(result: MemoryResult) -> str:
             agent = prompt_match.group(1).strip()
             user_msg = ""
             for line in lines[1:]:
-                if line.strip().startswith("[user]:"):
+                if line.strip().startswith("[user]:") or line.strip().startswith("User:"):
                     user_msg = line.strip()[7:].strip()[:80]
                     break
             label = f"Prompt → {agent}"
@@ -148,13 +163,32 @@ def _display_answer_mode(
         _display_raw_results(query, results)
         return
 
-    if answer:
+    if answer and answer.strip():
         console.print(Panel(
             Markdown(answer),
             title="[bold green]Answer[/bold green]",
             border_style="green",
             padding=(1, 2),
         ))
+    else:
+        prompt_sources = [r for r in results if "prompt" in r.topics or "Prompt to" in r.text or "Stored AI prompt" in r.text]
+        if prompt_sources and "prompt" in query.lower():
+            excerpt = prompt_sources[0].text
+            if len(excerpt) > 800:
+                excerpt = excerpt[:797] + "..."
+            console.print(Panel(
+                excerpt,
+                title="[bold green]Answer[/bold green] (excerpt from top prompt memory)",
+                border_style="green",
+                padding=(1, 2),
+            ))
+        else:
+            console.print(Panel(
+                "No synthesized answer. See sources below for retrieved memories.",
+                title="[bold green]Answer[/bold green]",
+                border_style="dim",
+                padding=(1, 2),
+            ))
 
     _display_sources(results, total_fetched, threshold)
 
@@ -202,6 +236,8 @@ def run_search(
     mtype = memory_type or None
 
     fetch_limit = limit * 3 if not raw else limit
+    if topics == ["prompt"]:
+        fetch_limit = max(fetch_limit, 80)
 
     try:
         results = client.search_memories(
@@ -214,6 +250,17 @@ def run_search(
     except Exception as e:
         console.print(f"[red]Search failed: {e}[/red]")
         raise typer.Exit(1)
+
+    if topics:
+        results = [r for r in results if r.topics and any(t in r.topics for t in topics)]
+    if topics == ["prompt"]:
+        results = [
+            r for r in results
+            if "Stored AI prompt" in r.text or "Prompt to" in r.text
+        ]
+
+    if _query_wants_recency(query) and results:
+        results = _sort_by_recency(results)
 
     if raw:
         if not results:

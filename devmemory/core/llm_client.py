@@ -75,6 +75,9 @@ Given the user's question and retrieved memories from the store, provide a clear
 Rules:
 - Be concise and direct (2-5 sentences for simple queries, more for complex ones)
 - Reference specific commits (SHA), files, or code patterns when relevant
+- If the user asks about prompts used, what was prompted, or what kind of prompts led to changes: \
+include the actual prompt text from the memories (the [user]: ... or "Prompt to ..." content) in your answer. \
+Quote the prompt text; do not only summarize commits or files.
 - If the memories are not relevant to the question, clearly state: \
 "The available memories don't contain information relevant to this question."
 - Don't fabricate information not present in the memories
