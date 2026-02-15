@@ -294,7 +294,7 @@ def run_why(
         run_why(filepath=filepath, function=function, limit=limit, raw=True)
         return
 
-    if answer:
+    if answer and answer.strip():
         title = f"[bold green]Why {filepath}"
         if function:
             title += f" → {function}"
@@ -306,5 +306,10 @@ def run_why(
             border_style="green",
             padding=(1, 2),
         ))
+    else:
+        console.print("[yellow]Model returned no explanation.[/yellow]")
+        console.print("[dim]Falling back to raw memories and git history...[/dim]\n")
+        run_why(filepath=filepath, function=function, limit=limit, raw=True)
+        return
 
     _display_sources(relevant)

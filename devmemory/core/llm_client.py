@@ -115,7 +115,8 @@ def _call_openai(
             error_msg = resp.json().get("error", {}).get("message", resp.text[:200])
             raise LLMError(f"OpenAI API error ({resp.status_code}): {error_msg}")
         data = resp.json()
-        return data["choices"][0]["message"]["content"]
+        content = data.get("choices", [{}])[0].get("message", {}).get("content")
+        return content if isinstance(content, str) else ""
 
 
 def _call_anthropic(
@@ -148,7 +149,12 @@ def _call_anthropic(
             error_msg = error_data.get("error", {}).get("message", resp.text[:200])
             raise LLMError(f"Anthropic API error ({resp.status_code}): {error_msg}")
         data = resp.json()
-        return data["content"][0]["text"]
+        content_list = data.get("content") or []
+        if not content_list:
+            return ""
+        first = content_list[0]
+        text = first.get("text") if isinstance(first, dict) else ""
+        return text if isinstance(text, str) else ""
 
 
 def call_llm(
