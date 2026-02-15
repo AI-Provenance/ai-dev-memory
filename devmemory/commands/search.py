@@ -14,6 +14,21 @@ console = Console()
 
 DEFAULT_THRESHOLD = 0.75
 
+RECENCY_WORDS = ("recent", "latest", "last", "newest")
+
+
+def _query_wants_recency(query: str) -> bool:
+    q = query.lower()
+    return any(w in q for w in RECENCY_WORDS)
+
+
+def _sort_by_recency(results: list[MemoryResult]) -> list[MemoryResult]:
+    def key(r: MemoryResult) -> tuple:
+        created = (r.created_at or "").strip()
+        return (0 if created else 1, created)
+
+    return sorted(results, key=key, reverse=True)
+
 
 def _extract_source_label(result: MemoryResult) -> str:
     text = result.text
@@ -243,6 +258,9 @@ def run_search(
             r for r in results
             if "Stored AI prompt" in r.text or "Prompt to" in r.text
         ]
+
+    if _query_wants_recency(query) and results:
+        results = _sort_by_recency(results)
 
     if raw:
         if not results:
