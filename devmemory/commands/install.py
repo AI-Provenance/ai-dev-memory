@@ -7,7 +7,7 @@ import typer
 from rich.console import Console
 
 from devmemory.core.config import DevMemoryConfig
-from devmemory.core.git_ai_parser import get_repo_root, is_git_ai_installed
+from devmemory.core.git_ai_parser import get_repo_root, is_git_ai_installed, enable_prompt_storage_notes
 
 console = Console()
 
@@ -144,6 +144,8 @@ def run_install(
     git_ai_ok = is_git_ai_installed()
     if git_ai_ok:
         console.print("[green]✓[/green] Git AI is installed")
+        if enable_prompt_storage_notes():
+            console.print("[green]✓[/green] Git AI prompt_storage set to notes (prompts in git notes for DevMemory)")
     else:
         console.print("[yellow]![/yellow] Git AI is not installed")
         console.print("  Install it with: [cyan]curl -sSL https://usegitai.com/install.sh | bash[/cyan]")

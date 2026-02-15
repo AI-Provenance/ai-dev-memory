@@ -462,3 +462,12 @@ def get_git_ai_version() -> str:
     except FileNotFoundError:
         pass
     return "not installed"
+
+
+def enable_prompt_storage_notes() -> bool:
+    try:
+        cmd = _git_ai_prefix() + ["config", "set", "prompt_storage", "notes"]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        return result.returncode == 0
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return False

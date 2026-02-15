@@ -148,13 +148,32 @@ def _display_answer_mode(
         _display_raw_results(query, results)
         return
 
-    if answer:
+    if answer and answer.strip():
         console.print(Panel(
             Markdown(answer),
             title="[bold green]Answer[/bold green]",
             border_style="green",
             padding=(1, 2),
         ))
+    else:
+        prompt_sources = [r for r in results if "prompt" in r.topics or "Prompt to" in r.text or "Stored AI prompt" in r.text]
+        if prompt_sources and "prompt" in query.lower():
+            excerpt = prompt_sources[0].text
+            if len(excerpt) > 800:
+                excerpt = excerpt[:797] + "..."
+            console.print(Panel(
+                excerpt,
+                title="[bold green]Answer[/bold green] (excerpt from top prompt memory)",
+                border_style="green",
+                padding=(1, 2),
+            ))
+        else:
+            console.print(Panel(
+                "No synthesized answer. See sources below for retrieved memories.",
+                title="[bold green]Answer[/bold green]",
+                border_style="dim",
+                padding=(1, 2),
+            ))
 
     _display_sources(results, total_fetched, threshold)
 
