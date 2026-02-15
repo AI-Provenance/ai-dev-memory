@@ -60,7 +60,7 @@ def _extract_source_label(result: MemoryResult) -> str:
             agent = prompt_match.group(1).strip()
             user_msg = ""
             for line in lines[1:]:
-                if line.strip().startswith("[user]:"):
+                if line.strip().startswith("[user]:") or line.strip().startswith("User:"):
                     user_msg = line.strip()[7:].strip()[:80]
                     break
             label = f"Prompt → {agent}"
