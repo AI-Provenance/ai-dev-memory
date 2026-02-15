@@ -179,8 +179,8 @@ def _format_prompt_messages(messages: list[dict], max_chars: int = MAX_PROMPT_ME
     total = 0
 
     for msg in messages:
-        role = msg.get("role", "user")
-        content = msg.get("content", "")
+        role = msg.get("role") or msg.get("type", "user")
+        content = msg.get("content") or msg.get("text", "")
         if isinstance(content, list):
             content = " ".join(
                 c.get("text", "") if isinstance(c, dict) else str(c)

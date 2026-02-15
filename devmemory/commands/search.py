@@ -221,6 +221,8 @@ def run_search(
     mtype = memory_type or None
 
     fetch_limit = limit * 3 if not raw else limit
+    if topics == ["prompt"]:
+        fetch_limit = max(fetch_limit, 80)
 
     try:
         results = client.search_memories(
@@ -233,6 +235,14 @@ def run_search(
     except Exception as e:
         console.print(f"[red]Search failed: {e}[/red]")
         raise typer.Exit(1)
+
+    if topics:
+        results = [r for r in results if r.topics and any(t in r.topics for t in topics)]
+    if topics == ["prompt"]:
+        results = [
+            r for r in results
+            if "Stored AI prompt" in r.text or "Prompt to" in r.text
+        ]
 
     if raw:
         if not results:
