@@ -258,6 +258,53 @@ def get_ai_note_for_commit(sha: str) -> str:
         return ""
 
 
+def _parse_ai_note_metadata(raw_note: str) -> dict | None:
+    if not raw_note or "---" not in raw_note:
+        return None
+    parts = raw_note.split("\n---\n", 1)
+    if len(parts) != 2:
+        return None
+    json_str = parts[1].strip()
+    if not json_str:
+        return None
+    try:
+        return json.loads(json_str)
+    except (json.JSONDecodeError, ValueError):
+        return None
+
+
+def _messages_from_note_prompt_record(record: dict) -> list[dict]:
+    out: list[dict] = []
+    for m in record.get("messages") or []:
+        kind = m.get("type", "user")
+        if kind not in ("user", "assistant"):
+            continue
+        text = m.get("text", "") or m.get("content", "")
+        if isinstance(text, list):
+            text = " ".join(
+                t.get("text", "") if isinstance(t, dict) else str(t) for t in text
+            )
+        out.append({"role": kind, "content": text})
+    return out
+
+
+def _prompts_from_note_metadata(raw_note: str) -> dict[str, dict]:
+    meta = _parse_ai_note_metadata(raw_note)
+    if not meta:
+        return {}
+    prompts = meta.get("prompts") or {}
+    return {str(k): v for k, v in prompts.items() if isinstance(v, dict) and re.match(r"^[a-f0-9]+$", str(k))}
+
+
+def _note_prompt_record_for_id(note_prompts: dict[str, dict], pid: str) -> dict | None:
+    if pid in note_prompts:
+        return note_prompts[pid]
+    for key, rec in note_prompts.items():
+        if key.startswith(pid) or pid.startswith(key):
+            return rec
+    return None
+
+
 def get_commits_since(since_sha: str | None, limit: int = 50) -> list[dict]:
     fmt = "%H|%an|%ae|%s|%aI"
     if since_sha:
@@ -298,9 +345,45 @@ def _build_commit_note(c: dict, enrich: bool = True) -> CommitNote:
 
     if has_ai and enrich:
         prompt_ids = _collect_prompt_ids(files)
+        note_prompts = _prompts_from_note_metadata(raw_note)
         for pid in prompt_ids:
             pd = get_prompt_data(pid, commit_sha=c["sha"])
+            if pd is None and c["sha"]:
+                pd = get_prompt_data(pid, commit_sha=None)
             if pd:
+                rec = _note_prompt_record_for_id(note_prompts, pid)
+                if not pd.messages and rec:
+                    msgs = _messages_from_note_prompt_record(rec)
+                    if msgs:
+                        agent = rec.get("agent_id") or {}
+                        pd = PromptData(
+                            prompt_id=pid,
+                            tool=agent.get("tool", pd.tool),
+                            model=agent.get("model", pd.model),
+                            human_author=rec.get("human_author", pd.human_author),
+                            messages=msgs,
+                            total_additions=rec.get("total_additions", pd.total_additions),
+                            total_deletions=rec.get("total_deletions", pd.total_deletions),
+                            accepted_lines=rec.get("accepted_lines", pd.accepted_lines),
+                            overridden_lines=rec.get("overriden_lines", pd.overridden_lines),
+                        )
+                prompts[pid] = pd
+            else:
+                rec = _note_prompt_record_for_id(note_prompts, pid)
+            if not pd and rec:
+                agent = rec.get("agent_id") or {}
+                msgs = _messages_from_note_prompt_record(rec)
+                pd = PromptData(
+                    prompt_id=pid,
+                    tool=agent.get("tool", ""),
+                    model=agent.get("model", ""),
+                    human_author=rec.get("human_author", ""),
+                    messages=msgs,
+                    total_additions=rec.get("total_additions", 0),
+                    total_deletions=rec.get("total_deletions", 0),
+                    accepted_lines=rec.get("accepted_lines", 0),
+                    overridden_lines=rec.get("overriden_lines", 0),
+                )
                 prompts[pid] = pd
 
         stats = get_commit_stats(c["sha"])
