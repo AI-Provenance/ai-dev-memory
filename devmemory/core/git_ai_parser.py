@@ -261,7 +261,10 @@ def get_ai_note_for_commit(sha: str) -> str:
 def _parse_ai_note_metadata(raw_note: str) -> dict | None:
     if not raw_note or "---" not in raw_note:
         return None
-    parts = raw_note.split("\n---\n", 1)
+    raw_note = raw_note.replace("\r\n", "\n")
+    parts = re.split(r"\n\s*---\s*\n", raw_note, maxsplit=1)
+    if len(parts) != 2:
+        parts = raw_note.split("\n---\n", 1)
     if len(parts) != 2:
         return None
     json_str = parts[1].strip()
