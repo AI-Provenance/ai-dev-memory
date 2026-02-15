@@ -297,11 +297,15 @@ def format_commit_as_memories(
     entities.extend(tech_entities)
     entities.extend(filepaths[:10])
 
+    summary_topics = list(all_topics) if all_topics else ["code-change"]
+    if prompt_summaries and "prompt" not in summary_topics:
+        summary_topics = ["prompt"] + summary_topics
+
     memories.append({
         "id": _memory_id(commit.sha, idx),
         "text": "\n".join(summary_parts),
         "memory_type": "semantic",
-        "topics": all_topics if all_topics else ["code-change"],
+        "topics": summary_topics,
         "entities": entities,
         "namespace": namespace,
         "user_id": user_id or commit.author_email,
@@ -389,11 +393,16 @@ def format_commit_as_memories(
 
         prompt_text_parts.append(f"Commit: {commit.subject} ({commit.sha[:12]})")
 
+        prompt_topics = list(all_topics) if all_topics else ["code-change"]
+        if "prompt" not in prompt_topics:
+            prompt_topics = ["prompt"] + prompt_topics
+
+        prompt_prefix = "Stored AI prompt for this repository. "
         memories.append({
             "id": _memory_id(commit.sha, idx),
-            "text": "\n".join(prompt_text_parts),
+            "text": prompt_prefix + "\n".join(prompt_text_parts),
             "memory_type": "semantic",
-            "topics": all_topics if all_topics else ["code-change"],
+            "topics": prompt_topics,
             "entities": [pd.human_author or commit.author_name, agent_str] + affected_files[:5],
             "namespace": namespace,
             "user_id": user_id or commit.author_email,
