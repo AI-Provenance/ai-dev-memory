@@ -40,6 +40,16 @@ def search(
 
 
 @app.command()
+def prompts(
+    limit: int = typer.Option(50, "--limit", "-n", help="Max prompt memories to list."),
+    namespace: str = typer.Option("", "--namespace", "-ns", help="Filter by namespace."),
+):
+    """List prompt memories stored in AMS (newest first). Use to verify what prompts are in Redis."""
+    from devmemory.commands.prompts import run_prompts
+    run_prompts(limit=limit, namespace=namespace)
+
+
+@app.command()
 def status():
     """Show system status."""
     from devmemory.commands.status import run_status
