@@ -1,0 +1,31 @@
+tests/test_why.py
+  a8665c915ce8559b 1-268
+README.md
+  a8665c915ce8559b 195-202
+devmemory/cli.py
+  a8665c915ce8559b 83-93
+devmemory/commands/why.py
+  a8665c915ce8559b 1-310
+devmemory/core/llm_client.py
+  a8665c915ce8559b 48-54,56-65,90-95,97,108,111,119-175,184-188
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.3",
+  "base_commit_sha": "2e8e56ea1f6e1c5c04a0174486a1f06a85e9a2db",
+  "prompts": {
+    "a8665c915ce8559b": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "994419ed-e9e5-4f0c-85fb-e0366875640c",
+        "model": "claude-4.6-opus-high-thinking"
+      },
+      "human_author": "bachgarash <bakhtiyar.garashov@zendesk.com>",
+      "messages": [],
+      "total_additions": 110,
+      "total_deletions": 91,
+      "accepted_lines": 685,
+      "overriden_lines": 0
+    }
+  }
+}
