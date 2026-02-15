@@ -1,3 +1,4 @@
+import hashlib
 import pytest
 
 from devmemory.core.ams_client import AMSClient
@@ -14,10 +15,21 @@ def _ams_available() -> bool:
 
 
 @pytest.mark.skipif(not _ams_available(), reason="AMS (Redis) not reachable")
-def test_search_prompts_from_redis():
+def test_store_and_search_prompt_from_redis():
     config = DevMemoryConfig.load()
     client = AMSClient(base_url=config.ams_endpoint)
     ns = config.namespace or "default"
+
+    text = "Stored AI prompt for this repository. Prompt to Cursor/claude-4.5: [user]: fix CLI freeze when running install\nResult: 12 lines added\nCommit: fix: avoid install hook freeze (abc123def456)"
+    sample_prompt_memory = {
+        "id": hashlib.sha256(f"test_prompt:{text}".encode()).hexdigest()[:24],
+        "text": text,
+        "memory_type": "semantic",
+        "topics": ["prompt", "code-change"],
+        "entities": ["devmemory", "install"],
+        "namespace": ns,
+    }
+    client.create_memories([sample_prompt_memory], deduplicate=False)
 
     results = client.search_memories(
         text="stored AI prompt for this repository",
@@ -25,18 +37,14 @@ def test_search_prompts_from_redis():
         namespace=ns,
         topics=["prompt"],
     )
-
     assert isinstance(results, list)
     for r in results:
-        assert r.id
-        assert r.text is not None
-        assert r.topics is not None
+        assert r.id and r.text is not None and r.topics is not None
 
     prompt_memories = [r for r in results if "prompt" in r.topics]
-    print(prompt_memories)
-    if prompt_memories:
-        sample = prompt_memories[0]
-        assert "Prompt to" in sample.text or "Stored AI prompt" in sample.text
+    assert prompt_memories, "expected at least one memory with topic 'prompt'"
+    sample = prompt_memories[0]
+    assert "Prompt to" in sample.text or "Stored AI prompt" in sample.text
 
 
 @pytest.mark.skipif(not _ams_available(), reason="AMS (Redis) not reachable")
@@ -50,7 +58,7 @@ def test_search_prompts_by_text_only():
         limit=5,
         namespace=ns,
     )
-    print(results)
+
     assert isinstance(results, list)
     for r in results:
         assert r.id and r.text is not None and r.topics is not None
