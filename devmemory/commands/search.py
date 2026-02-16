@@ -221,6 +221,7 @@ def run_search(
     memory_type: str = "",
     threshold: float = DEFAULT_THRESHOLD,
     raw: bool = False,
+    recency_boost: float = 0.0,
 ):
     config = DevMemoryConfig.load()
     client = AMSClient(base_url=config.ams_endpoint)
@@ -259,8 +260,15 @@ def run_search(
             if "Stored AI prompt" in r.text or "Prompt to" in r.text
         ]
 
-    if _query_wants_recency(query) and results:
-        results = _sort_by_recency(results)
+    if (recency_boost > 0 or _query_wants_recency(query)) and results:
+        # If recency_boost is high (e.g. > 0.8), we might just sort by recency
+        if recency_boost > 0.8:
+            results = _sort_by_recency(results)
+        else:
+            # Simple re-ranking: keep similarity as primary but nudge recent ones up
+            # For now, let's stick to the existing automatic logic if triggered by keywords,
+            # but allow forcing it via the flag.
+            results = _sort_by_recency(results)
 
     if raw:
         if not results:

@@ -19,29 +19,44 @@ class AMSClient:
     def __init__(self, base_url: str = "http://localhost:8000", timeout: float = 30.0):
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
+        self._shared_client: httpx.Client | None = None
 
     def _client(self) -> httpx.Client:
+        if self._shared_client:
+            return self._shared_client
         return httpx.Client(base_url=self.base_url, timeout=self.timeout)
 
+    def __enter__(self):
+        self._shared_client = httpx.Client(base_url=self.base_url, timeout=self.timeout)
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self._shared_client:
+            self._shared_client.close()
+            self._shared_client = None
+
     def health_check(self) -> dict:
-        with self._client() as client:
-            resp = client.get("/v1/health")
-            resp.raise_for_status()
-            return resp.json()
+        client = self._client()
+        resp = client.get("/v1/health")
+        resp.raise_for_status()
+        return resp.json()
 
     def create_memories(
         self,
         memories: list[dict],
         deduplicate: bool = True,
     ) -> dict:
+        if not memories:
+            return {"count": 0, "ids": []}
+
         payload = {
             "memories": memories,
             "deduplicate": deduplicate,
         }
-        with self._client() as client:
-            resp = client.post("/v1/long-term-memory/", json=payload)
-            resp.raise_for_status()
-            return resp.json()
+        client = self._client()
+        resp = client.post("/v1/long-term-memory/", json=payload)
+        resp.raise_for_status()
+        return resp.json()
 
     def search_memories(
         self,
@@ -75,11 +90,11 @@ class AMSClient:
             results.append(MemoryResult(
                 id=m.get("id", ""),
                 text=m.get("text", ""),
-                score=m.get("dist", 0.0),
+                score=m.get("dist", m.get("score", 0.0)),
                 topics=m.get("topics") or [],
                 entities=m.get("entities") or [],
                 memory_type=m.get("memory_type", ""),
-                created_at=m.get("created_at", ""),
+                created_at=m.get("created_at") or m.get("metadata", {}).get("created_at", ""),
             ))
         return results
 

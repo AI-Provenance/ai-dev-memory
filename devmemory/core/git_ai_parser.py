@@ -5,6 +5,7 @@ import os
 import re
 import subprocess
 from dataclasses import dataclass, field
+from devmemory.core.utils import run_command, get_repo_root
 
 
 @dataclass
@@ -106,14 +107,7 @@ def get_commit_diff(sha: str) -> str:
 
 
 def get_commit_diff_full(sha: str) -> str:
-    try:
-        result = subprocess.run(
-            ["git", "diff", f"{sha}~1..{sha}", "--no-color"],
-            capture_output=True, text=True, check=True,
-        )
-        return result.stdout.strip()
-    except subprocess.CalledProcessError:
-        return ""
+    return run_command(["git", "diff", f"{sha}~1..{sha}", "--no-color"]) or ""
 
 
 def get_per_file_diffs(sha: str) -> dict[str, str]:
