@@ -129,7 +129,7 @@ def test_synthesize_why_raises_without_api_key(monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
 
     monkeypatch.setattr(
-        "devmemory.core.llm_client._get_llm_config",
+        "devmemory.core.llm_client.get_llm_config",
         lambda: ("", "gpt-4o-mini", "openai"),
     )
 

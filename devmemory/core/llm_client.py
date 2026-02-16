@@ -45,7 +45,7 @@ def _get_env_var(key: str) -> str:
     return ""
 
 
-def _get_llm_config() -> tuple[str, str, str]:
+def get_llm_config() -> tuple[str, str, str]:
     """Return (api_key, model, provider) for the configured LLM.
 
     Provider is "anthropic" or "openai".
@@ -99,27 +99,49 @@ def _call_openai(
     timeout: float = 60.0,
 ) -> str:
     with httpx.Client(timeout=timeout) as client:
+        payload = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_msg},
+            ],
+        }
+        
+        if model.startswith("gpt-5") or model.startswith("o3") or model.startswith("o4"):
+            payload["max_completion_tokens"] = max_tokens
+        else:
+            payload["max_tokens"] = max_tokens
+        
         resp = client.post(
             "https://api.openai.com/v1/chat/completions",
             headers={
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
             },
-            json={
-                "model": model,
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_msg},
-                ],
-                "max_completion_tokens": max_tokens,
-            },
+            json=payload,
         )
         if resp.status_code != 200:
             error_msg = resp.json().get("error", {}).get("message", resp.text[:200])
             raise LLMError(f"OpenAI API error ({resp.status_code}): {error_msg}")
         data = resp.json()
-        content = data.get("choices", [{}])[0].get("message", {}).get("content")
-        return content if isinstance(content, str) else ""
+        choices = data.get("choices", [])
+        if not choices:
+            raise LLMError("OpenAI API returned no choices in response")
+        choice = choices[0]
+        finish_reason = choice.get("finish_reason", "unknown")
+        message = choice.get("message", {})
+        content = message.get("content")
+        
+        if content is None:
+            raise LLMError(f"OpenAI API returned null content (finish_reason: {finish_reason})")
+        
+        if not isinstance(content, str):
+            raise LLMError(f"OpenAI API returned non-string content: {type(content)} (finish_reason: {finish_reason})")
+        
+        if not content.strip():
+            raise LLMError(f"OpenAI API returned empty/whitespace content (finish_reason: {finish_reason}, content length: {len(content)})")
+        
+        return content
 
 
 def _call_anthropic(
@@ -152,12 +174,23 @@ def _call_anthropic(
             error_msg = error_data.get("error", {}).get("message", resp.text[:200])
             raise LLMError(f"Anthropic API error ({resp.status_code}): {error_msg}")
         data = resp.json()
+        stop_reason = data.get("stop_reason", "unknown")
         content_list = data.get("content") or []
         if not content_list:
-            return ""
+            raise LLMError(f"Anthropic API returned empty content list (stop_reason: {stop_reason})")
         first = content_list[0]
-        text = first.get("text") if isinstance(first, dict) else ""
-        return text if isinstance(text, str) else ""
+        if not isinstance(first, dict):
+            raise LLMError(f"Anthropic API returned invalid content block: {type(first)} (stop_reason: {stop_reason})")
+        if first.get("type") != "text":
+            raise LLMError(f"Anthropic API returned non-text content block: {first.get('type')} (stop_reason: {stop_reason})")
+        text = first.get("text")
+        if text is None:
+            raise LLMError(f"Anthropic API returned null text in content block (stop_reason: {stop_reason})")
+        if not isinstance(text, str):
+            raise LLMError(f"Anthropic API returned non-string text: {type(text)} (stop_reason: {stop_reason})")
+        if not text.strip():
+            raise LLMError(f"Anthropic API returned empty/whitespace text (stop_reason: {stop_reason}, text length: {len(text)})")
+        return text
 
 
 def call_llm(
@@ -167,7 +200,7 @@ def call_llm(
     timeout: float = 60.0,
 ) -> str:
     """Call the configured LLM (OpenAI or Anthropic) and return the response text."""
-    api_key, model, provider = _get_llm_config()
+    api_key, model, provider = get_llm_config()
 
     if not api_key:
         raise LLMError("no_api_key")
