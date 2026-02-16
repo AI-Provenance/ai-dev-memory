@@ -101,6 +101,22 @@ def _build_query(filepath: str, function: str = "") -> str:
     return f"{filepath} implementation history decisions changes"
 
 
+def _truncate_text(text: str, max_chars: int) -> str:
+    """Truncate text to max_chars, preserving word boundaries."""
+    if len(text) <= max_chars:
+        return text
+    truncated = text[:max_chars]
+    last_space = truncated.rfind(" ")
+    if last_space > max_chars * 0.8:
+        return truncated[:last_space] + "..."
+    return truncated + "..."
+
+
+def _estimate_tokens(text: str) -> int:
+    """Rough token estimation: ~4 characters per token."""
+    return len(text) // 4
+
+
 def _synthesize_why(
     filepath: str,
     function: str,
@@ -110,17 +126,49 @@ def _synthesize_why(
     """Use LLM to synthesize a 'why' narrative from memories and git context."""
     from devmemory.core.llm_client import call_llm
 
-    # Build memory context
+    MAX_INPUT_TOKENS = 8000
+    MAX_OUTPUT_TOKENS = 2000
+    
+    system_prompt_tokens = _estimate_tokens(WHY_SYSTEM_PROMPT)
+    base_msg_tokens = _estimate_tokens(f"Explain why `{filepath}` exists and how it evolved.\n\n")
+    
+    available_tokens = MAX_INPUT_TOKENS - system_prompt_tokens - base_msg_tokens - MAX_OUTPUT_TOKENS
+    
+    git_context_truncated = _truncate_text(git_context, min(len(git_context), available_tokens // 2 * 4))
+    git_tokens = _estimate_tokens(git_context_truncated)
+    available_tokens -= git_tokens
+    
     context_parts = []
+    total_memory_chars = 0
+    max_memory_chars = available_tokens * 4
+    
     for i, mem in enumerate(memories, 1):
         topics_str = ", ".join(mem.get("topics", []))
         header = f"--- Memory {i} (type: {mem['type']}, score: {mem['score']:.3f}"
         if topics_str:
             header += f", topics: {topics_str}"
         header += ") ---"
-        context_parts.append(f"{header}\n{mem['text']}")
+        
+        mem_text = mem.get("text", "")
+        header_len = len(header) + 2
+        
+        remaining_chars = max_memory_chars - total_memory_chars - header_len
+        if remaining_chars <= 100:
+            break
+            
+        truncated_text = _truncate_text(mem_text, remaining_chars)
+        context_parts.append(f"{header}\n{truncated_text}")
+        total_memory_chars += len(header) + len(truncated_text) + 2
 
     memory_context = "\n\n".join(context_parts)
+    
+    truncated_count = len(memories) - len(context_parts)
+    if truncated_count > 0:
+        memory_context += f"\n\n[Note: {truncated_count} additional memories were truncated due to input length limits]"
+        console.print(f"[dim]Warning: Truncated {truncated_count} memories to fit within context window[/dim]")
+    
+    if len(git_context_truncated) < len(git_context):
+        console.print(f"[dim]Warning: Git history truncated ({len(git_context_truncated)}/{len(git_context)} chars)[/dim]")
 
     target = f"`{filepath}`"
     if function:
@@ -128,11 +176,11 @@ def _synthesize_why(
 
     user_msg = (
         f"Explain why {target} exists and how it evolved.\n\n"
-        f"Git history for this file:\n{git_context}\n\n"
-        f"Retrieved memories ({len(memories)} results):\n\n{memory_context}"
+        f"Git history for this file:\n{git_context_truncated}\n\n"
+        f"Retrieved memories ({len(context_parts)} of {len(memories)} shown):\n\n{memory_context}"
     )
 
-    return call_llm(WHY_SYSTEM_PROMPT, user_msg, max_tokens=1500)
+    return call_llm(WHY_SYSTEM_PROMPT, user_msg, max_tokens=MAX_OUTPUT_TOKENS)
 
 
 def _display_sources(results: list[MemoryResult]):
@@ -281,13 +329,26 @@ def run_why(
     console.print("[dim]Synthesizing explanation...[/dim]\n")
 
     try:
-        from devmemory.core.llm_client import LLMError
+        from devmemory.core.llm_client import LLMError, get_llm_config
+        api_key, model, provider = get_llm_config()
+        if not api_key:
+            raise LLMError("no_api_key")
+        console.print(f"[dim]Using {provider} model: {model}[/dim]\n")
+        
+        import os
+        debug_mode = os.environ.get("DEVMEMORY_DEBUG", "").lower() in ("1", "true", "yes")
+        if debug_mode:
+            console.print(f"[dim]Debug: Found {len(memories_for_llm)} memories, git_context length: {len(git_context)}[/dim]\n")
+        
         answer = _synthesize_why(filepath, function, memories_for_llm, git_context)
+        
+        if debug_mode:
+            console.print(f"[dim]Debug: LLM returned answer of length: {len(answer) if answer else 0}[/dim]\n")
     except Exception as e:
         error_str = str(e)
         if "no_api_key" in error_str:
             console.print("[yellow]No API key found for answer synthesis.[/yellow]")
-            console.print("[dim]Set OPENAI_API_KEY in .env or environment. Falling back to raw output...[/dim]\n")
+            console.print("[dim]Set OPENAI_API_KEY or ANTHROPIC_API_KEY in .env or environment. Falling back to raw output...[/dim]\n")
         else:
             console.print(f"[yellow]Synthesis failed: {error_str}[/yellow]")
             console.print("[dim]Falling back to raw output...[/dim]\n")
