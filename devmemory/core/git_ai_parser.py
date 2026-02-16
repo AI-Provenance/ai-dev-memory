@@ -136,14 +136,7 @@ def get_per_file_diffs(sha: str) -> dict[str, str]:
 
 
 def get_commit_body(sha: str) -> str:
-    try:
-        result = subprocess.run(
-            ["git", "log", "-1", "--format=%b", sha],
-            capture_output=True, text=True, check=True,
-        )
-        return result.stdout.strip()
-    except subprocess.CalledProcessError:
-        return ""
+    return run_command(["git", "log", "-1", "--format=%b", sha]) or ""
 
 
 def parse_ai_note(raw_note: str) -> list[FileAttribution]:
@@ -178,13 +171,12 @@ def get_prompt_data(prompt_id: str, commit_sha: str | None = None) -> PromptData
     if commit_sha:
         cmd.extend(["--commit", commit_sha])
 
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-    except (subprocess.CalledProcessError, FileNotFoundError):
+    output = run_command(cmd)
+    if not output:
         return None
 
     try:
-        data = json.loads(result.stdout)
+        data = json.loads(output)
     except (json.JSONDecodeError, ValueError):
         return None
 
@@ -210,13 +202,12 @@ def get_prompt_data(prompt_id: str, commit_sha: str | None = None) -> PromptData
 
 def get_commit_stats(sha: str) -> CommitStats | None:
     cmd = _git_ai_prefix() + ["stats", sha, "--json"]
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-    except (subprocess.CalledProcessError, FileNotFoundError):
+    output = run_command(cmd)
+    if not output:
         return None
 
     try:
-        data = json.loads(result.stdout)
+        data = json.loads(output)
     except (json.JSONDecodeError, ValueError):
         return None
 
@@ -242,14 +233,7 @@ def _collect_prompt_ids(files: list[FileAttribution]) -> set[str]:
 
 
 def get_ai_note_for_commit(sha: str) -> str:
-    try:
-        result = subprocess.run(
-            ["git", "notes", "--ref=ai", "show", sha],
-            capture_output=True, text=True, check=True,
-        )
-        return result.stdout.strip()
-    except subprocess.CalledProcessError:
-        return ""
+    return run_command(["git", "notes", "--ref=ai", "show", sha]) or ""
 
 
 def _parse_ai_note_metadata(raw_note: str) -> dict | None:
@@ -302,20 +286,21 @@ def _note_prompt_record_for_id(note_prompts: dict[str, dict], pid: str) -> dict 
     return None
 
 
-def get_commits_since(since_sha: str | None, limit: int = 50) -> list[dict]:
+def get_commits_since(since_sha: str | None, limit: int = 50, all_branches: bool = False) -> list[dict]:
     fmt = "%H|%an|%ae|%s|%aI"
+    cmd = ["git", "log", f"--format={fmt}", f"-{limit}"]
+    if all_branches:
+        cmd.append("--all")
+    
     if since_sha:
-        cmd = ["git", "log", f"--format={fmt}", f"{since_sha}..HEAD", f"-{limit}"]
-    else:
-        cmd = ["git", "log", f"--format={fmt}", f"-{limit}"]
+        cmd.append(f"{since_sha}..HEAD")
 
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-    except subprocess.CalledProcessError:
+    output = run_command(cmd)
+    if not output:
         return []
 
     commits = []
-    for line in result.stdout.strip().splitlines():
+    for line in output.strip().splitlines():
         if not line.strip():
             continue
         parts = line.split("|", 4)
@@ -401,8 +386,8 @@ def _build_commit_note(c: dict, enrich: bool = True) -> CommitNote:
     )
 
 
-def get_ai_notes_since(since_sha: str | None, limit: int = 50) -> list[CommitNote]:
-    commits = get_commits_since(since_sha, limit)
+def get_ai_notes_since(since_sha: str | None, limit: int = 50, all_branches: bool = False) -> list[CommitNote]:
+    commits = get_commits_since(since_sha, limit, all_branches=all_branches)
     return [_build_commit_note(c) for c in commits]
 
 

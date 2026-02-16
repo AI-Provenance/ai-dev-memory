@@ -122,7 +122,35 @@ def _install_cursor_mcp_config(mcp_endpoint: str) -> bool:
     else:
         existing = {}
 
-    servers = existing.get("mcpServers", {})
+    servers = existing.get("mcpServers")
+    if not isinstance(servers, dict):
+        servers = {}
+    servers["agent-memory"] = config_entry
+    existing["mcpServers"] = servers
+
+    mcp_path.write_text(json.dumps(existing, indent=2) + "\n")
+    return True
+def _install_antigravity_mcp_config(mcp_endpoint: str) -> bool:
+    antigravity_dir = Path.home() / ".gemini" / "antigravity"
+    antigravity_dir.mkdir(parents=True, exist_ok=True)
+    mcp_path = antigravity_dir / "mcp_config.json"
+
+    config_entry = {
+        "url": f"{mcp_endpoint}/sse"
+    }
+
+    if mcp_path.exists():
+        try:
+            content = mcp_path.read_text().strip()
+            existing = json.loads(content) if content else {}
+        except (json.JSONDecodeError, ValueError):
+            existing = {}
+    else:
+        existing = {}
+
+    servers = existing.get("mcpServers")
+    if not isinstance(servers, dict):
+        servers = {}
     servers["agent-memory"] = config_entry
     existing["mcpServers"] = servers
 
@@ -132,7 +160,8 @@ def _install_cursor_mcp_config(mcp_endpoint: str) -> bool:
 
 def run_install(
     skip_hook: bool = False,
-    skip_mcp: bool = False,
+    skip_cursor: bool = False,
+    skip_antigravity: bool = False,
     skip_rule: bool = False,
     mcp_endpoint: str = "",
 ):
@@ -168,8 +197,8 @@ def run_install(
     else:
         console.print("[dim]─[/dim] Git hooks skipped")
 
-    if not skip_mcp:
-        endpoint = mcp_endpoint or config.mcp_endpoint
+    endpoint = mcp_endpoint or config.mcp_endpoint
+    if not skip_cursor:
         if _install_cursor_mcp_config(endpoint):
             console.print(f"[green]✓[/green] Cursor MCP config written (~/.cursor/mcp.json)")
             console.print(f"  [dim]MCP endpoint: {endpoint}/sse[/dim]")
@@ -177,6 +206,15 @@ def run_install(
             console.print("[red]✗[/red] Failed to write Cursor MCP config")
     else:
         console.print("[dim]─[/dim] Cursor MCP config skipped")
+
+    if not skip_antigravity:
+        if _install_antigravity_mcp_config(endpoint):
+            console.print(f"[green]✓[/green] Antigravity MCP config written (~/.gemini/antigravity/mcp_config.json)")
+            console.print(f"  [dim]MCP endpoint: {endpoint}/sse[/dim]")
+        else:
+            console.print("[red]✗[/red] Failed to write Antigravity MCP config")
+    else:
+        console.print("[dim]─[/dim] Antigravity MCP config skipped")
 
     if not skip_rule:
         main_ok, context_ok = _install_cursor_rules(repo_root)
