@@ -18,10 +18,21 @@ def sync(
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be synced without sending."),
     limit: int = typer.Option(50, "--limit", help="Max commits to process."),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Minimal output (single summary line)."),
+    batch_size: int = typer.Option(50, "--batch-size", help="Number of memories per sync request."),
+    local_enrichment: bool = typer.Option(True, "--local-enrichment/--ams-enrichment", help="Whether to perform enrichment locally or rely on AMS."),
 ):
     """Sync Git AI notes to Redis AMS."""
     from devmemory.commands.sync import run_sync
-    run_sync(latest=latest, all_commits=all_commits, ai_only=ai_only, dry_run=dry_run, limit=limit, quiet=quiet)
+    run_sync(
+        latest=latest, 
+        all_commits=all_commits, 
+        ai_only=ai_only, 
+        dry_run=dry_run, 
+        limit=limit, 
+        quiet=quiet,
+        batch_size=batch_size,
+        local_enrichment=local_enrichment
+    )
 
 
 @app.command()
@@ -33,10 +44,20 @@ def search(
     memory_type: str = typer.Option("", "--type", help="Filter by memory type (episodic, semantic)."),
     threshold: float = typer.Option(0.75, "--threshold", help="Relevance threshold (0-1, lower=stricter). Results with distance above this are filtered."),
     raw: bool = typer.Option(False, "--raw", help="Raw output mode: skip answer synthesis and show memory panels directly."),
+    recency_boost: float = typer.Option(0.0, "--recency", help="Apply recency boost (0.0=none, 1.0=full priority on recent)."),
 ):
     """Search the project knowledgebase with AI-powered answer synthesis."""
     from devmemory.commands.search import run_search
-    run_search(query=query, limit=limit, namespace=namespace, topic=topic, memory_type=memory_type, threshold=threshold, raw=raw)
+    run_search(
+        query=query, 
+        limit=limit, 
+        namespace=namespace, 
+        topic=topic, 
+        memory_type=memory_type, 
+        threshold=threshold, 
+        raw=raw,
+        recency_boost=recency_boost
+    )
 
 
 @app.command()

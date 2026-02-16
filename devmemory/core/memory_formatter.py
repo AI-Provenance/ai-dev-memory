@@ -75,9 +75,11 @@ def _extract_topics_from_subject(subject: str) -> list[str]:
     return found
 
 
-def _extract_tech_entities_from_diff(diff_content: str) -> list[str]:
+def _extract_tech_entities_from_diff(diff_content: str, local_only: bool = False) -> list[str]:
+    if local_only: return [] # Let AMS handle it if configured
     entities: set[str] = set()
 
+    # Optimized regex for common tech stack patterns
     for match in re.findall(r'^\+\s*(?:from|import)\s+([\w.]+)', diff_content, re.MULTILINE):
         top_module = match.split(".")[0]
         known = {
@@ -205,6 +207,7 @@ def format_commit_as_memories(
     commit: CommitNote,
     namespace: str = "default",
     user_id: str = "",
+    local_enrichment: bool = True,
 ) -> list[dict]:
     memories: list[dict] = []
     idx = 0
@@ -213,11 +216,15 @@ def format_commit_as_memories(
     all_diff_content = "\n".join(file_diffs.values())
 
     filepaths = [f.filepath for f in commit.files]
-    file_topics = _extract_topics_from_paths(commit.files)
-    subject_topics = _extract_topics_from_subject(commit.subject)
-    all_topics = sorted(set(file_topics + subject_topics))
-
-    tech_entities = _extract_tech_entities_from_diff(all_diff_content)
+    
+    if local_enrichment:
+        file_topics = _extract_topics_from_paths(commit.files)
+        subject_topics = _extract_topics_from_subject(commit.subject)
+        all_topics = sorted(set(file_topics + subject_topics))
+        tech_entities = _extract_tech_entities_from_diff(all_diff_content)
+    else:
+        all_topics = []
+        tech_entities = []
 
     agents: set[str] = set()
     prompt_summaries: list[str] = []
