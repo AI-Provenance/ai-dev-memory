@@ -24,6 +24,7 @@ def run_sync(
     quiet: bool = False,
     batch_size: int = 50,
     local_enrichment: bool = True,
+    all_branches: bool = False,
 ):
     repo_root = get_repo_root()
     if not repo_root:
@@ -42,8 +43,8 @@ def run_sync(
             raise typer.Exit(0)
         notes = [note]
     else:
-        since_sha = None if all_commits else (state.last_synced_sha or None)
-        notes = get_ai_notes_since(since_sha, limit=limit)
+        since_sha = None if (all_commits or all_branches) else (state.last_synced_sha or None)
+        notes = get_ai_notes_since(since_sha, limit=limit, all_branches=all_branches)
 
     if not notes:
         if not quiet:

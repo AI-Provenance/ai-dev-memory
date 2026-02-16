@@ -20,6 +20,7 @@ def sync(
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Minimal output (single summary line)."),
     batch_size: int = typer.Option(50, "--batch-size", help="Number of memories per sync request."),
     local_enrichment: bool = typer.Option(True, "--local-enrichment/--ams-enrichment", help="Whether to perform enrichment locally or rely on AMS."),
+    all_branches: bool = typer.Option(False, "--all-branches", help="Sync commits from all local branches."),
 ):
     """Sync Git AI notes to Redis AMS."""
     from devmemory.commands.sync import run_sync
@@ -31,7 +32,8 @@ def sync(
         limit=limit, 
         quiet=quiet,
         batch_size=batch_size,
-        local_enrichment=local_enrichment
+        local_enrichment=local_enrichment,
+        all_branches=all_branches
     )
 
 
@@ -125,13 +127,20 @@ def why(
 @app.command()
 def install(
     skip_hook: bool = typer.Option(False, "--skip-hook", help="Skip post-commit hook installation."),
-    skip_mcp: bool = typer.Option(False, "--skip-mcp", help="Skip Cursor MCP config."),
+    skip_cursor: bool = typer.Option(False, "--skip-cursor", help="Skip Cursor MCP config."),
+    skip_antigravity: bool = typer.Option(False, "--skip-antigravity", help="Skip Antigravity MCP config."),
     skip_rule: bool = typer.Option(False, "--skip-rule", help="Skip Cursor agent rule installation."),
     mcp_endpoint: str = typer.Option("", "--mcp-endpoint", help="Override MCP server endpoint."),
 ):
-    """Set up Git hooks, Cursor MCP config, and agent coordination rules."""
+    """Set up Git hooks, MCP configs, and agent coordination rules."""
     from devmemory.commands.install import run_install
-    run_install(skip_hook=skip_hook, skip_mcp=skip_mcp, skip_rule=skip_rule, mcp_endpoint=mcp_endpoint)
+    run_install(
+        skip_hook=skip_hook, 
+        skip_cursor=skip_cursor, 
+        skip_antigravity=skip_antigravity, 
+        skip_rule=skip_rule, 
+        mcp_endpoint=mcp_endpoint
+    )
 
 
 def main():
