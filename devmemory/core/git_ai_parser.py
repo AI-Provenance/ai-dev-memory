@@ -453,3 +453,12 @@ def enable_prompt_storage_notes() -> bool:
         return result.returncode == 0
     except (subprocess.CalledProcessError, FileNotFoundError):
         return False
+
+
+def install_git_ai_hooks() -> bool:
+    try:
+        cmd = _git_ai_prefix() + ["install-hooks"]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        return result.returncode == 0
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return False
