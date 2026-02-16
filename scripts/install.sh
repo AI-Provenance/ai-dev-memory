@@ -126,14 +126,17 @@ fi
 _run_git_ai_config() {
     if command -v git-ai &>/dev/null; then
         git-ai config set prompt_storage notes 2>/dev/null
+        git-ai install-hooks 2>/dev/null || true
     elif [ -x "$HOME/.git-ai/bin/git-ai" ]; then
         "$HOME/.git-ai/bin/git-ai" config set prompt_storage notes 2>/dev/null
+        "$HOME/.git-ai/bin/git-ai" install-hooks 2>/dev/null || true
     elif git ai version &>/dev/null 2>&1; then
         git ai config set prompt_storage notes 2>/dev/null
+        git ai install-hooks 2>/dev/null || true
     fi
 }
 if _run_git_ai_config; then
-    info "Git AI prompt_storage set to notes (prompts in git notes for DevMemory)"
+    info "Git AI prompt_storage set to notes and hooks installed"
 fi
 
 # ── Step 3: Install devmemory CLI via uv ───────────────────────────────────────
