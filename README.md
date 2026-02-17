@@ -1,225 +1,85 @@
-# DevMemory 🚀🧠
+# DevMemory
 
 [![CI](https://github.com/AI-Provenance/ai-dev-memory/actions/workflows/ci.yml/badge.svg)](https://github.com/AI-Provenance/ai-dev-memory/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/devmemory.svg)](https://pypi.org/project/devmemory/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-> **TL;DR**: DevMemory is a long‑term memory for your AI coding agents.  
-> It remembers *why* code was written, *how* it changed, and *what* your team learned — then feeds that back into your agents. No more “reinvent the bug” speedruns. 🐛🔥
+DevMemory is a long‑term memory for AI coding agents that can explain why any file or function looks the way it does and let agents reuse that understanding across sessions without re-reading the whole repo.
 
-Built on [Git AI](https://github.com/git-ai-project/git-ai) for silent capture and [Redis Agent Memory Server](https://github.com/redis/agent-memory-server) for semantic search and recall.
-
----
-
-## 💡 What DevMemory Does (in human terms)
-
-- 🪝 **Hooks into your git workflow** via Git AI notes  
-- 🧬 **Extracts rich memories**:
-  - Commit summaries (who, what, why, which agent/model, how much AI)
-  - Per‑file code snippets
-  - Prompt‑level context with acceptance metrics
-- 🧠 **Stores everything in Redis AMS** as semantic vectors
-- 🔍 **Lets you ask**:  
-  *“How do we handle auth?”* → it searches, then LLM‑synthesizes an actual answer with sources  
-- 🧾 **Ships a knowledge protocol**: `.devmemory/knowledge/*.md` + CLI + Cursor rules so humans and agents keep the docs alive together
-
-If Entire saves *how* agents worked and Git AI tracks *who wrote which line*, DevMemory is the part that answers *“Okay, but what did we actually learn?”*.
+Built on [Git AI](https://github.com/git-ai-project/git-ai) for capture and [Redis Agent Memory Server](https://github.com/redis/agent-memory-server) for semantic search and recall.
 
 ---
 
-## 🧮 How It Works
+## Why DevMemory
 
-```text
-Developer commits code
-        │
-        ▼
-Git AI captures AI attribution, prompts, agent/model info
-        │
-        ▼
-DevMemory syncs enriched memories to Redis AMS (automatic via post-commit hook)
-        │
-        ├─► Semantic search via CLI (with LLM-synthesized answers)
-        ├─► MCP recall in Cursor IDE (agents search memory before coding)
-        └─► Context briefing auto-generated on branch switch
-```
+- **`devmemory why` for code archaeology**: Ask why a file or function exists and get a narrative backed by commits, prompts, and code snippets.
+- **Semantic search over your repo’s history**: Search “how do we handle auth?” or “why did we switch to Redis?” and get synthesized answers with sources.
+- **Agent-ready, session‑to‑session memory**: Coding agents can fetch recent and relevant memories at the start of a task and write new ones when they finish, instead of re‑parsing the codebase and burning tokens every session.
 
-**The knowledge loop:**
-
-1. **Capture** – Git AI silently records AI code attribution, prompts, and agent/model info on every commit
-2. **Enrich** – DevMemory extracts three layers per commit: enriched summary, per‑file code snapshots, and prompt‑level context with acceptance metrics
-3. **Search** – Semantic vector search with LLM‑powered answer synthesis (RAG over your git history)
-4. **Recall** – Cursor agents read memory via MCP before writing code, and persist new decisions after
-5. **Learn** – Human‑curated knowledge files (`.devmemory/knowledge/*.md`) feed the same store, capturing architecture decisions and gotchas
-
-> 🧵 Think of it as `git log` + “what we should have written in the ADR” + your AI agents actually reading it.
+If Git AI tracks who wrote which line and Entire checkpoints how agents worked, DevMemory answers what the team actually learned, why the code ended up this way, and gives agents a fast way to reuse that knowledge next time.
 
 ---
 
-## 🎥 Demo (what it *feels* like)
-
-Imagine:
+## `devmemory why` (hero feature)
 
 ```bash
-devmemory status                    # ✅ Stack + hooks look good
-git commit -am "feat: add user auth"   # You used an AI agent heavily
-
-# Normally the post-commit hook runs this for you in the background:
-#   (sleep 2 && devmemory sync --latest 2>/dev/null) &
-# but you can also trigger it manually:
-devmemory sync --latest
-devmemory search "how do we handle auth in this service?"
+devmemory why src/auth.py
+devmemory why src/auth.py login
+devmemory why src/auth.py --raw
+devmemory why src/auth.py --verbose
 ```
 
-You get:
+`devmemory why` pulls together:
 
-- A concise answer synthesized by the LLM (RAG), describing:
-  - Which files implement auth
-  - Which agent/model was used
-  - Key decisions (e.g., why JWT vs sessions)
-- A **Sources** table listing:
-  - Commit summaries
-  - Relevant per‑file code snippets
-  - The original prompts that drove the changes
+- Commit summaries
+- Per-file code snapshots
+- Prompt-level context
+- Human knowledge from `.devmemory/knowledge/*.md`
 
-Sample search result:
+and turns them into an explanation of how and why a file or symbol evolved, plus the sources it used.
 
-```
-$ devmemory search "why we use redis memory server instead of other databases?"
+Typical questions it answers:
 
-Searching for: why we use redis memory server instead of other databases?
-Synthesizing answer...
-
-╭────────────────────────────────────────────────────────────── Answer ───────────────────────────────────────────────────────────────╮
-│                                                                                                                                     │
-│  Short answer: because Redis Agent Memory Server (AMS) already provides the exact semantic-memory features we need (embeddings,     │
-│  topic extraction, NER, deduplication) while being battle‑tested infra, so it reduces operational complexity and keeps the CLI      │
-│  lightweight.                                                                                                                       │
-│                                                                                                                                     │
-│  Details / evidence from the repo:                                                                                                  │
-│                                                                                                                                     │
-│   • AMS handles embeddings, topic extraction and NER internally and provides built‑in memory deduplication (see                     │
-│     .devmemory/knowledge/architecture.md, commit b0abbb04ad13).                                                                     │
-│   • The same AMS image serves both REST (port 8000) and MCP (port 9050) endpoints used by the CLI (see docker-compose.yml and       │
-│     ams_client.py; feature enable commit f025d01e107c).                                                                             │
-│   • README and ams_client.py show we store semantic vectors in Redis AMS and call its /v1/long-term-memory APIs, avoiding the need  │
-│     to run a separate vector DB (README.md commit 2b7602a5318a and devmemory/core/ams_client.py).                                   │
-│                                                                                                                                     │
-╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
-
-Sources (10 relevant, 20 filtered out)
-
- #    Score    Type        Source                                                                      
- 1    0.302    semantic    Why Redis Agent Memory Server                                               
- 2    0.614    semantic    Memory Types and Their Purpose                                              
- 3    0.613    semantic    feat: enable devmemory CLI with redis AMS and git-ai (f025d01e107c)         
- 4    0.641    semantic    feat: add more metadata from the session to the memory (4ccf7529bd4e)       
- 5    0.671    semantic    fix: use the --quite to show the one line update (139d559bdaa0)             
- 6    0.677    semantic    Fix: terminal hang issue and the correct saved memories coun (daf56666f1f1) 
- 7    0.512    episodic    .devmemory/knowledge/architecture.md (b0abbb04ad13)                         
- 8    0.550    episodic    devmemory/core/ams_client.py (f025d01e107c)                                 
- 9    0.588    episodic    README.md (2b7602a5318a)                                                    
- 10   0.561    episodic    docker-compose.yml (f025d01e107c)                    
-```
-
-Auto-sync example:
-
-![auto-sync.gif](./docs/auto-sync.gif)
+- Why do we use this pattern here instead of an alternative?
+- When did this behavior change and what bug or feature drove it?
+- Which agent and prompts were involved in this refactor?
 
 ---
 
-## 🚀 Quick Start
+## Quick start
 
 ### Prerequisites
 
 - Git
-- Docker + Docker Compose
+- Docker and Docker Compose
 - Python 3.10+
 - OpenAI API key (for embeddings and answer synthesis)
 - [Git AI](https://usegitai.com/) (for AI code attribution capture)
 
-### One‑Line Setup
+### One-line setup
 
 ```bash
 bash scripts/install.sh
 ```
 
-This script:
+This script checks your environment, installs the CLI with `uv`, starts Redis plus AMS and MCP, configures git hooks, and wires DevMemory into Cursor.
 
-- Checks Docker / Python / Git AI and verifies the Docker daemon is running
-- Installs [uv](https://docs.astral.sh/uv/) if not present, then installs the `devmemory` CLI via `uv tool install`
-- Sets up `.env` from `.env.example`
-- Starts Redis + AMS + MCP via Docker
-- Configures git hooks + Cursor MCP + agent rules in the current repo
-
-### Manual Setup
+### Manual setup
 
 ```bash
 git clone https://github.com/devmemory/devmemory
 cd devmemory
 
-# Set up environment
 cp .env.example .env
-# Edit .env and add your OPENAI_API_KEY
 
-# Start the stack
 make up
 
-# Install the CLI (requires uv: https://docs.astral.sh/uv/)
 uv tool install --editable .
 
-# Set up hooks, MCP config, and Cursor rules in your project
 cd /path/to/your/project
 devmemory install
 
-# Check everything works
 devmemory status
-```
-
----
-
-## ⌨️ CLI Commands
-
-### Core workflow 🧠
-
-```bash
-devmemory sync                       # Sync unsynced Git AI commits to Redis
-devmemory sync --latest              # Sync only the latest commit
-devmemory sync --all                 # Re-sync all commits
-devmemory sync --dry-run             # Preview what would be synced
-devmemory search "how do we auth"    # Semantic search with LLM-synthesized answer
-devmemory search "auth" -n 5         # Limit results
-devmemory search "auth" --raw        # Raw results without LLM synthesis
-devmemory status                     # Show system health, sync state, hooks
-```
-
-### Code archaeology 🔍
-
-```bash
-devmemory why src/auth.py            # Explain why a file exists and how it evolved
-devmemory why src/auth.py login      # Focus on a specific function or class
-devmemory why src/auth.py --raw      # Show raw memories and git history without synthesis
-devmemory why src/auth.py --verbose  # Show verbose explanation (more sections) and sources
-```
-
-### Knowledge management 📚
-
-```bash
-devmemory add "We chose Redis over Postgres for vector search because..." --topic architecture
-devmemory add --interactive          # Interactive mode with prompts
-devmemory learn                      # Sync .devmemory/knowledge/*.md into memory store
-devmemory learn --dry-run            # Preview what would be synced
-devmemory context                    # Generate .devmemory/CONTEXT.md from git state + memory
-```
-
-### Setup and config ⚙️
-
-```bash
-devmemory install                    # Set up git hooks + Cursor MCP + agent rules
-devmemory install --skip-hook        # Skip hook installation
-devmemory install --skip-rule        # Skip Cursor agent rules
-devmemory config show                # Show current config
-devmemory config set endpoint URL    # Change AMS endpoint
-devmemory config reset               # Reset to defaults
 ```
 
 ---
@@ -261,14 +121,13 @@ Both automated capture (Git AI) **and** human knowledge feed the same searchable
 
 ## 🤝 Cursor Agent Integration
 
-`devmemory install` sets up three things for Cursor:
+`devmemory install` wires DevMemory into Cursor so agents can:
 
-1. **MCP server config** (`~/.cursor/mcp.json`) – Agents can search and write to the memory store via MCP tools (`search_long_term_memory`, `create_long_term_memories`, etc.)
-2. **Agent behavior rules** (`.cursor/rules/devmemory.mdc`) – Instructs agents to search memory before coding, persist decisions after significant work, and maintain knowledge files
-3. **Context rule** (`.cursor/rules/devmemory-context.mdc`) – Agents read `.devmemory/CONTEXT.md` at task start for a pre‑built briefing
+1. Use **MCP tools** like `search_long_term_memory` to pull in recent and relevant memories instead of asking the LLM to rediscover context from raw code.
+2. Call `create_long_term_memories` at the end of a task to store what changed and why, so future sessions start with that knowledge.
+3. Read `.devmemory/CONTEXT.md` on branch switch for a compact briefing instead of re‑evaluating the entire project on every run.
 
-The result is a **compounding loop**: each agent session makes the next one smarter.  
-Your AI stops acting like a goldfish and starts acting like a teammate. 🐠➡️🧑‍💻
+Over time this creates a compounding loop: each agent session leaves the repo a little better documented for the next one, while saving tokens and latency by reusing existing memory.
 
 ---
 
