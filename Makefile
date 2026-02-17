@@ -25,4 +25,4 @@ build:
 	uv build
 
 publish:
-	uv publish
+	twine upload --skip-existing dist/*
