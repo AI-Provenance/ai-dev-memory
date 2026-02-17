@@ -153,7 +153,7 @@ def test_synthesize_why_builds_correct_user_message(monkeypatch):
         captured["user_msg"] = user_msg
         return "The answer"
 
-    monkeypatch.setattr("devmemory.core.llm_client.call_llm", fake_call_llm)
+    monkeypatch.setattr("devmemory.commands.why.call_llm", fake_call_llm)
 
     memories = [
         {"text": "Added auth module", "type": "semantic", "score": 0.3, "topics": ["auth"]},
@@ -177,7 +177,7 @@ def test_synthesize_why_uses_verbose_prompt(monkeypatch):
         captured["user_msg"] = user_msg
         return "The answer"
 
-    monkeypatch.setattr("devmemory.core.llm_client.call_llm", fake_call_llm)
+    monkeypatch.setattr("devmemory.commands.why.call_llm", fake_call_llm)
 
     memories = [
         {"text": "Added auth module", "type": "semantic", "score": 0.3, "topics": ["auth"]},

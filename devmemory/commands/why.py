@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import subprocess
 
 import typer
@@ -11,6 +12,8 @@ from rich.text import Text
 
 from devmemory.core.config import DevMemoryConfig
 from devmemory.core.ams_client import AMSClient, MemoryResult
+from devmemory.core.llm_client import LLMError, call_llm, get_llm_config
+import tiktoken
 
 console = Console()
 
@@ -143,8 +146,16 @@ def _truncate_text(text: str, max_chars: int) -> str:
     return truncated + "..."
 
 
-def _estimate_tokens(text: str) -> int:
-    """Rough token estimation: ~4 characters per token."""
+def _estimate_tokens(text: str, model: str = "gpt-5-mini") -> int:
+    try:
+        if tiktoken is not None:
+            try:
+                enc = tiktoken.encoding_for_model(model)
+            except KeyError:
+                enc = tiktoken.get_encoding("o200k_base")
+            return len(enc.encode(text))
+    except Exception:
+        return len(text) // 4
     return len(text) // 4
 
 
@@ -155,21 +166,20 @@ def _synthesize_why(
     git_context: str,
     verbose: bool = False,
     debug_mode: bool = False,
+    model: str = "gpt-4o-mini",
 ) -> str | None:
     """Use LLM to synthesize a 'why' narrative from memories and git context."""
-    from devmemory.core.llm_client import call_llm
-
     MAX_INPUT_TOKENS = 8000
     MAX_OUTPUT_TOKENS = 2000
 
     system_prompt = WHY_SYSTEM_PROMPT_VERBOSE if verbose else WHY_SYSTEM_PROMPT
-    system_prompt_tokens = _estimate_tokens(system_prompt)
-    base_msg_tokens = _estimate_tokens(f"Explain why `{filepath}` exists and how it evolved.\n\n")
+    system_prompt_tokens = _estimate_tokens(system_prompt, model=model)
+    base_msg_tokens = _estimate_tokens(f"Explain why `{filepath}` exists and how it evolved.\n\n", model=model)
     
     available_tokens = MAX_INPUT_TOKENS - system_prompt_tokens - base_msg_tokens - MAX_OUTPUT_TOKENS
     
     git_context_truncated = _truncate_text(git_context, min(len(git_context), available_tokens // 2 * 4))
-    git_tokens = _estimate_tokens(git_context_truncated)
+    git_tokens = _estimate_tokens(git_context_truncated, model=model)
     available_tokens -= git_tokens
     
     context_parts = []
@@ -366,12 +376,10 @@ def run_why(
     console.print("[dim]Synthesizing explanation...[/dim]\n")
 
     try:
-        from devmemory.core.llm_client import LLMError, get_llm_config
         api_key, model, provider = get_llm_config()
         if not api_key:
             raise LLMError("no_api_key")
         
-        import os
         debug_mode = os.environ.get("DEVMEMORY_DEBUG", "").lower() in ("1", "true", "yes")
         if verbose or debug_mode:
             console.print(f"[dim]Using {provider} model: {model}[/dim]\n")
@@ -385,6 +393,7 @@ def run_why(
             git_context,
             verbose=verbose,
             debug_mode=debug_mode,
+            model=model,
         )
         
         if debug_mode:
