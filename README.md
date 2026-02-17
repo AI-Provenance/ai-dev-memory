@@ -198,6 +198,7 @@ devmemory status                     # Show system health, sync state, hooks
 devmemory why src/auth.py            # Explain why a file exists and how it evolved
 devmemory why src/auth.py login      # Focus on a specific function or class
 devmemory why src/auth.py --raw      # Show raw memories and git history without synthesis
+devmemory why src/auth.py --verbose  # Show verbose explanation (more sections) and sources
 ```
 
 ### Knowledge management 📚

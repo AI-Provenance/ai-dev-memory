@@ -22,16 +22,47 @@ tells the story behind the code.
 Given a file path (and optionally a function/class name) along with retrieved \
 memories from the project's memory store, provide a clear narrative that answers:
 
-1. **Why does this code exist?** — What problem or feature drove its creation?
-2. **How did it evolve?** — Key changes, refactors, or fixes over time.
-3. **Who/what wrote it?** — Was it human-authored or AI-generated? Which agent/model?
-4. **Key decisions** — Any notable design choices, trade-offs, or gotchas.
+1. **Why this file exists**
+2. **How it evolved (key events)**
+3. **Who/what wrote it**
 
 Rules:
+- Output must contain EXACTLY these 3 sections, in this exact order, with these exact headings:
+  - "Why this file exists"
+  - "How it evolved (key events)"
+  - "Who/what wrote it"
+- Do not include any other headings or sections
+- Each heading must be on its own line, followed by a blank line, then bullet points under it
+- Keep it concise (aim for 8-15 bullet lines total across all sections)
+- Reference specific commits (SHA) when relevant
+- Mention the agent/model if the code was AI-generated
+- If memories don't contain relevant information, say so clearly
+- Focus on the "why" and "how", not just "what changed\""""
+
+WHY_SYSTEM_PROMPT_VERBOSE = """\
+You are a code historian for a software project. You explain *why* code exists \
+and how it evolved to its current state — like an intelligent git blame that \
+tells the story behind the code.
+
+Given a file path (and optionally a function/class name) along with retrieved \
+memories from the project's memory store, provide a clear narrative that answers:
+
+1. **Why this file exists**
+2. **How it evolved (key events)**
+3. **Who/what wrote it**
+4. **Key design decisions, trade-offs, and gotchas** (optional, only if supported by evidence)
+
+Rules:
+- Output must start with the 3 required sections using these exact headings, in this exact order:
+  - "Why this file exists"
+  - "How it evolved (key events)"
+  - "Who/what wrote it"
+- Each required heading must be on its own line, followed by a blank line, then bullet points under it
+- You may add additional sections only after the 3 required sections, and only if supported by evidence
+- Do not add a "Short answer" section
 - Be concise but thorough — aim for a narrative, not a list of commits
 - Reference specific commits (SHA) when relevant
 - Mention the agent/model if the code was AI-generated
-- If you see a pattern of changes (e.g., multiple bug fixes), explain the root cause
 - If memories don't contain relevant information, say so clearly
 - Focus on the "why" and "how", not just "what changed\""""
 
@@ -122,14 +153,17 @@ def _synthesize_why(
     function: str,
     memories: list[dict],
     git_context: str,
+    verbose: bool = False,
+    debug_mode: bool = False,
 ) -> str | None:
     """Use LLM to synthesize a 'why' narrative from memories and git context."""
     from devmemory.core.llm_client import call_llm
 
     MAX_INPUT_TOKENS = 8000
     MAX_OUTPUT_TOKENS = 2000
-    
-    system_prompt_tokens = _estimate_tokens(WHY_SYSTEM_PROMPT)
+
+    system_prompt = WHY_SYSTEM_PROMPT_VERBOSE if verbose else WHY_SYSTEM_PROMPT
+    system_prompt_tokens = _estimate_tokens(system_prompt)
     base_msg_tokens = _estimate_tokens(f"Explain why `{filepath}` exists and how it evolved.\n\n")
     
     available_tokens = MAX_INPUT_TOKENS - system_prompt_tokens - base_msg_tokens - MAX_OUTPUT_TOKENS
@@ -165,10 +199,12 @@ def _synthesize_why(
     truncated_count = len(memories) - len(context_parts)
     if truncated_count > 0:
         memory_context += f"\n\n[Note: {truncated_count} additional memories were truncated due to input length limits]"
-        console.print(f"[dim]Warning: Truncated {truncated_count} memories to fit within context window[/dim]")
+        if verbose or debug_mode:
+            console.print(f"[dim]Warning: Truncated {truncated_count} memories to fit within context window[/dim]")
     
     if len(git_context_truncated) < len(git_context):
-        console.print(f"[dim]Warning: Git history truncated ({len(git_context_truncated)}/{len(git_context)} chars)[/dim]")
+        if verbose or debug_mode:
+            console.print(f"[dim]Warning: Git history truncated ({len(git_context_truncated)}/{len(git_context)} chars)[/dim]")
 
     target = f"`{filepath}`"
     if function:
@@ -180,7 +216,7 @@ def _synthesize_why(
         f"Retrieved memories ({len(context_parts)} of {len(memories)} shown):\n\n{memory_context}"
     )
 
-    return call_llm(WHY_SYSTEM_PROMPT, user_msg, max_tokens=MAX_OUTPUT_TOKENS)
+    return call_llm(system_prompt, user_msg, max_tokens=MAX_OUTPUT_TOKENS)
 
 
 def _display_sources(results: list[MemoryResult]):
@@ -209,6 +245,7 @@ def run_why(
     function: str = "",
     limit: int = 15,
     raw: bool = False,
+    verbose: bool = False,
 ):
     config = DevMemoryConfig.load()
     client = AMSClient(base_url=config.ams_endpoint)
@@ -333,14 +370,22 @@ def run_why(
         api_key, model, provider = get_llm_config()
         if not api_key:
             raise LLMError("no_api_key")
-        console.print(f"[dim]Using {provider} model: {model}[/dim]\n")
         
         import os
         debug_mode = os.environ.get("DEVMEMORY_DEBUG", "").lower() in ("1", "true", "yes")
+        if verbose or debug_mode:
+            console.print(f"[dim]Using {provider} model: {model}[/dim]\n")
         if debug_mode:
             console.print(f"[dim]Debug: Found {len(memories_for_llm)} memories, git_context length: {len(git_context)}[/dim]\n")
         
-        answer = _synthesize_why(filepath, function, memories_for_llm, git_context)
+        answer = _synthesize_why(
+            filepath,
+            function,
+            memories_for_llm,
+            git_context,
+            verbose=verbose,
+            debug_mode=debug_mode,
+        )
         
         if debug_mode:
             console.print(f"[dim]Debug: LLM returned answer of length: {len(answer) if answer else 0}[/dim]\n")
@@ -373,4 +418,5 @@ def run_why(
         run_why(filepath=filepath, function=function, limit=limit, raw=True)
         return
 
-    _display_sources(relevant)
+    if verbose:
+        _display_sources(relevant)

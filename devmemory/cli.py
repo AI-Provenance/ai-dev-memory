@@ -118,10 +118,11 @@ def why(
     function: str = typer.Argument("", help="Optional function or class name to focus on."),
     limit: int = typer.Option(15, "--limit", "-n", help="Max memories to use for synthesis."),
     raw: bool = typer.Option(False, "--raw", help="Show raw memories and git history without LLM synthesis."),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show verbose explanation and sources."),
 ):
     """Explain why a file (or function) exists and how it evolved."""
     from devmemory.commands.why import run_why
-    run_why(filepath=filepath, function=function, limit=limit, raw=raw)
+    run_why(filepath=filepath, function=function, limit=limit, raw=raw, verbose=verbose)
 
 
 @app.command()

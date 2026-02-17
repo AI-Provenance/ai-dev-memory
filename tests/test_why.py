@@ -9,6 +9,7 @@ from devmemory.commands.why import (
     _get_git_blame_summary,
     _get_git_log_for_file,
     WHY_SYSTEM_PROMPT,
+    WHY_SYSTEM_PROMPT_VERBOSE,
 )
 
 
@@ -117,6 +118,7 @@ def test_blame_summary_returns_empty_on_error(monkeypatch):
 def test_system_prompt_is_distinct_from_search():
     from devmemory.core.llm_client import SYSTEM_PROMPT as SEARCH_PROMPT
     assert WHY_SYSTEM_PROMPT != SEARCH_PROMPT
+    assert WHY_SYSTEM_PROMPT_VERBOSE != SEARCH_PROMPT
     assert "code historian" in WHY_SYSTEM_PROMPT
     assert "why" in WHY_SYSTEM_PROMPT.lower()
 
@@ -157,7 +159,7 @@ def test_synthesize_why_builds_correct_user_message(monkeypatch):
         {"text": "Added auth module", "type": "semantic", "score": 0.3, "topics": ["auth"]},
     ]
 
-    result = why._synthesize_why("src/auth.py", "login", memories, "git log here")
+    result = why._synthesize_why("src/auth.py", "login", memories, "git log here", verbose=False, debug_mode=False)
 
     assert result == "The answer"
     assert captured["system_prompt"] == WHY_SYSTEM_PROMPT
@@ -165,6 +167,27 @@ def test_synthesize_why_builds_correct_user_message(monkeypatch):
     assert "login" in captured["user_msg"]
     assert "git log here" in captured["user_msg"]
     assert "Added auth module" in captured["user_msg"]
+
+
+def test_synthesize_why_uses_verbose_prompt(monkeypatch):
+    captured = {}
+
+    def fake_call_llm(system_prompt, user_msg, **kwargs):
+        captured["system_prompt"] = system_prompt
+        captured["user_msg"] = user_msg
+        return "The answer"
+
+    monkeypatch.setattr("devmemory.core.llm_client.call_llm", fake_call_llm)
+
+    memories = [
+        {"text": "Added auth module", "type": "semantic", "score": 0.3, "topics": ["auth"]},
+    ]
+
+    result = why._synthesize_why("src/auth.py", "login", memories, "git log here", verbose=True, debug_mode=False)
+
+    assert result == "The answer"
+    assert captured["system_prompt"] == WHY_SYSTEM_PROMPT_VERBOSE
+    assert "src/auth.py" in captured["user_msg"]
 
 
 # ── run_why integration (mocked) ────────────────────────────────────────────────
