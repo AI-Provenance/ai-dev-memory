@@ -1,5 +1,14 @@
 import typer
 from devmemory.commands.config_cmd import app as config_app
+from devmemory.commands.add import run_add
+from devmemory.commands.context import run_context
+from devmemory.commands.install import run_install
+from devmemory.commands.learn import run_learn
+from devmemory.commands.prompts import run_prompts
+from devmemory.commands.search import run_search
+from devmemory.commands.status import run_status
+from devmemory.commands.sync import run_sync
+from devmemory.commands.why import run_why
 
 app = typer.Typer(
     name="devmemory",
@@ -23,7 +32,6 @@ def sync(
     all_branches: bool = typer.Option(False, "--all-branches", help="Sync commits from all local branches."),
 ):
     """Sync Git AI notes to Redis AMS."""
-    from devmemory.commands.sync import run_sync
     run_sync(
         latest=latest, 
         all_commits=all_commits, 
@@ -49,7 +57,6 @@ def search(
     recency_boost: float = typer.Option(0.0, "--recency", help="Apply recency boost (0.0=none, 1.0=full priority on recent)."),
 ):
     """Search the project knowledgebase with AI-powered answer synthesis."""
-    from devmemory.commands.search import run_search
     run_search(
         query=query, 
         limit=limit, 
@@ -68,14 +75,12 @@ def prompts(
     namespace: str = typer.Option("", "--namespace", "-ns", help="Filter by namespace."),
 ):
     """List prompt memories stored in AMS (newest first). Use to verify what prompts are in Redis."""
-    from devmemory.commands.prompts import run_prompts
     run_prompts(limit=limit, namespace=namespace)
 
 
 @app.command()
 def status():
     """Show system status."""
-    from devmemory.commands.status import run_status
     run_status()
 
 
@@ -88,7 +93,6 @@ def add(
     interactive: bool = typer.Option(False, "--interactive", "-i", help="Interactive mode with prompts."),
 ):
     """Add a memory directly (design decisions, gotchas, conventions, etc.)."""
-    from devmemory.commands.add import run_add
     run_add(text=text, memory_type=memory_type, topics=topic or None, entities=entity or None, interactive=interactive)
 
 
@@ -98,7 +102,6 @@ def learn(
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be synced without sending."),
 ):
     """Sync knowledge files (markdown) into the memory store."""
-    from devmemory.commands.learn import run_learn
     run_learn(path=path, dry_run=dry_run)
 
 
@@ -108,7 +111,6 @@ def context(
     quiet: bool = typer.Option(False, "--quiet", "-q", help="No terminal output, just write the file."),
 ):
     """Generate a context briefing from memory based on current git state."""
-    from devmemory.commands.context import run_context
     run_context(output=output, quiet=quiet)
 
 
@@ -121,7 +123,6 @@ def why(
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show verbose explanation and sources."),
 ):
     """Explain why a file (or function) exists and how it evolved."""
-    from devmemory.commands.why import run_why
     run_why(filepath=filepath, function=function, limit=limit, raw=raw, verbose=verbose)
 
 
@@ -134,7 +135,6 @@ def install(
     mcp_endpoint: str = typer.Option("", "--mcp-endpoint", help="Override MCP server endpoint."),
 ):
     """Set up Git hooks, MCP configs, and agent coordination rules."""
-    from devmemory.commands.install import run_install
     run_install(
         skip_hook=skip_hook, 
         skip_cursor=skip_cursor, 
