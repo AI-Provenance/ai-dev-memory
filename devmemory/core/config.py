@@ -14,6 +14,7 @@ DEFAULTS = {
     "mcp_endpoint": "http://localhost:9050",
     "namespace": "default",
     "user_id": "",
+    "auto_summarize": False,
 }
 
 
@@ -23,6 +24,7 @@ class DevMemoryConfig:
     mcp_endpoint: str = DEFAULTS["mcp_endpoint"]
     namespace: str = DEFAULTS["namespace"]
     user_id: str = DEFAULTS["user_id"]
+    auto_summarize: bool = DEFAULTS["auto_summarize"]
 
     @classmethod
     def load(cls) -> DevMemoryConfig:
@@ -67,7 +69,7 @@ class DevMemoryConfig:
         target_dir.mkdir(parents=True, exist_ok=True)
         target_file.write_text(json.dumps(asdict(self), indent=2) + "\n")
 
-    def set_value(self, key: str, value: str, local: bool = False) -> None:
+    def set_value(self, key: str, value: str | bool, local: bool = False) -> None:
         if key not in self.__dataclass_fields__:
             raise KeyError(f"Unknown config key: {key}. Valid keys: {list(self.__dataclass_fields__)}")
         setattr(self, key, value)

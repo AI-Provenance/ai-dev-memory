@@ -75,6 +75,15 @@ def set_value(
 ):
     config = DevMemoryConfig.load()
     try:
+        field_type = config.__dataclass_fields__.get(key)
+        if field_type and field_type.type == bool:
+            if value.lower() in ("true", "1", "yes", "on"):
+                value = True
+            elif value.lower() in ("false", "0", "no", "off"):
+                value = False
+            else:
+                console.print(f"[red]Invalid boolean value: {value}. Use true/false, 1/0, yes/no, or on/off.[/red]")
+                raise typer.Exit(1)
         config.set_value(key, value, local=local)
         loc_str = " (local)" if local else " (global)"
         console.print(f"[green]Set {key} = {value}{loc_str}[/green]")

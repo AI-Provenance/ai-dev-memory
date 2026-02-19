@@ -131,6 +131,33 @@ Over time this creates a compounding loop: each agent session leaves the repo a 
 
 ---
 
+## Auto-summarization
+
+DevMemory can automatically generate LLM-powered summaries for each commit during sync. These summaries capture:
+
+- **Intent**: Why the change was made and what problem it solves
+- **Outcome**: What was actually implemented
+- **Learnings**: Insights discovered during implementation
+- **Friction points**: Blockers, tradeoffs, or challenges encountered
+- **Open items**: Follow-ups, known limitations, or TODOs
+
+**Benefits for agents:**
+
+- **Token efficiency**: Agents read concise summaries (100-300 tokens) instead of parsing full commit diffs
+- **Better search relevance**: Semantic search finds summaries that explain "why we added retry logic" faster than scanning code
+- **Faster onboarding**: Agents quickly catch up on recent changes by reading summaries instead of analyzing code
+- **Intent preservation**: The "why" behind changes is preserved even when commit messages are brief
+
+**Enable auto-summarization:**
+
+```bash
+devmemory config set auto_summarize true
+```
+
+Summaries are generated non-blocking during `devmemory sync`—failures are logged but don't stop the sync process. Each summary is stored as a semantic memory with the `commit-summary` topic, making them easily searchable.
+
+---
+
 ## 🪝 Git Hooks
 
 DevMemory installs two git hooks:
@@ -230,9 +257,14 @@ Config is stored in `~/.devmemory/config.json`:
   "ams_endpoint": "http://localhost:8000",
   "mcp_endpoint": "http://localhost:9050",
   "namespace": "default",
-  "user_id": ""
+  "user_id": "",
+  "auto_summarize": false
 }
 ```
+
+**Configuration options:**
+
+- `auto_summarize`: Enable automatic LLM-powered commit summaries (default: `false`). When enabled, each commit synced generates a narrative summary capturing intent, outcome, learnings, and friction points.
 
 Environment variables (in `.env`):
 

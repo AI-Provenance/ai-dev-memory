@@ -9,7 +9,11 @@ from devmemory.core.git_ai_parser import (
     get_latest_commit_note,
 )
 from devmemory.core.utils import get_repo_root
-from devmemory.core.memory_formatter import format_commit_as_memories, format_commit_without_ai
+from devmemory.core.memory_formatter import (
+    format_commit_as_memories,
+    format_commit_without_ai,
+    generate_commit_summary,
+)
 from devmemory.core.ams_client import AMSClient
 
 console = Console()
@@ -82,6 +86,7 @@ def run_sync(
 
     all_memories = []
     synced_shas = []
+    summary_memories = []
 
     ns = config.get_active_namespace()
     for n in notes_to_sync:
@@ -102,6 +107,18 @@ def run_sync(
         if memories:
             all_memories.extend(memories)
             synced_shas.append(n.sha)
+        
+        if config.auto_summarize and n.has_ai_note:
+            try:
+                summary = generate_commit_summary(
+                    n,
+                    namespace=ns,
+                    user_id=config.user_id,
+                )
+                if summary:
+                    summary_memories.append(summary)
+            except Exception:
+                pass
 
     if dry_run:
         if not quiet:
@@ -126,6 +143,19 @@ def run_sync(
             if not quiet:
                 console.print(f"\n[red]✗ Sync failed: {e}[/red]")
             raise typer.Exit(1)
+    
+    if summary_memories:
+        try:
+            with client:
+                if not quiet:
+                    console.print(f"[dim]Generating {len(summary_memories)} commit summary(ies)...[/dim]")
+                client.create_memories(summary_memories)
+                total_synced += len(summary_memories)
+                if not quiet:
+                    console.print(f"[green]✓ Generated {len(summary_memories)} commit summary(ies).[/green]")
+        except Exception as e:
+            if not quiet:
+                console.print(f"[yellow]⚠ Summarization failed (non-blocking): {e}[/yellow]")
 
     newest_sha = notes_to_sync[0].sha
     state.mark_synced(newest_sha, count=total_synced)

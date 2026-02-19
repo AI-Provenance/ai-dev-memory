@@ -10,6 +10,7 @@ from devmemory.core.git_ai_parser import (
     get_commit_diff,
     get_per_file_diffs,
 )
+from devmemory.core.llm_client import call_llm, LLMError
 
 MAX_FILE_SNIPPET_CHARS = 2000
 MAX_SUMMARY_FILES = 20
@@ -466,3 +467,139 @@ def format_commit_without_ai(
         "user_id": user_id or commit.author_email,
         "session_id": f"git-{commit.sha[:12]}",
     }]
+
+
+COMMIT_SUMMARY_SYSTEM_PROMPT = """\
+You are a code historian summarizing a git commit for an AI coding agent's memory system.
+
+Given commit metadata, prompts used, code changes, and context, generate a concise narrative summary that captures:
+
+1. **Intent**: Why was this change made? What problem does it solve?
+2. **Outcome**: What was actually implemented?
+3. **Learnings**: What was discovered during implementation? Any insights or patterns?
+4. **Friction points**: Were there blockers, tradeoffs, or challenges?
+5. **Open items**: Any follow-ups, known limitations, or TODOs?
+
+Rules:
+- Be concise (100-300 words)
+- Focus on the "why" and "what we learned", not just "what changed"
+- Reference specific files or technologies when relevant
+- If prompts are provided, mention what the developer was asking for
+- If this is a bug fix, explain what bug was fixed and why it happened
+- If this is a refactor, explain what was improved and why
+- Use clear, agent-friendly language
+- Don't repeat the commit message verbatim; synthesize the context"""
+
+
+def generate_commit_summary(
+    commit: CommitNote,
+    namespace: str = "default",
+    user_id: str = "",
+    timeout: float = 30.0,
+) -> dict | None:
+    """Generate an LLM-powered summary for a commit.
+    
+    Returns a memory dict ready to be stored in AMS, or None if summarization fails.
+    Non-blocking: failures are logged but don't raise exceptions.
+    """
+    try:
+        file_diffs = get_per_file_diffs(commit.sha)
+        diff_stat = get_commit_diff(commit.sha)
+        
+        agents: set[str] = set()
+        prompt_texts: list[str] = []
+        for pd in commit.prompts.values():
+            if pd.tool and pd.model:
+                agents.add(f"{pd.tool}/{pd.model}")
+            elif pd.tool:
+                agents.add(pd.tool)
+            if pd.messages:
+                for m in pd.messages:
+                    if m.get("role") == "user":
+                        content = m.get("content", "")
+                        if isinstance(content, list):
+                            content = " ".join(
+                                c.get("text", "") if isinstance(c, dict) else str(c)
+                                for c in content
+                            )
+                        if content:
+                            prompt_texts.append(content[:500])
+                            break
+        
+        context_parts = []
+        context_parts.append(f"Commit: {commit.subject}")
+        if commit.body:
+            context_parts.append(f"Description: {commit.body[:500]}")
+        context_parts.append(f"Author: {commit.author_name}")
+        context_parts.append(f"SHA: {commit.sha[:12]}")
+        
+        if agents:
+            context_parts.append(f"AI Agent(s) used: {', '.join(sorted(agents))}")
+        
+        if commit.stats:
+            s = commit.stats
+            context_parts.append(f"AI contribution: {s.ai_additions} AI lines, {s.human_additions} human lines")
+            if s.ai_accepted:
+                context_parts.append(f"AI acceptance rate: {s.ai_accepted} lines accepted unchanged")
+            if s.time_waiting_for_ai:
+                context_parts.append(f"Time waiting for AI: {s.time_waiting_for_ai:.0f}s")
+        
+        if prompt_texts:
+            context_parts.append("\nPrompts used:")
+            for i, pt in enumerate(prompt_texts[:3], 1):
+                context_parts.append(f"{i}. {pt}")
+        
+        filepaths = [f.filepath for f in commit.files]
+        if filepaths:
+            context_parts.append(f"\nFiles changed ({len(filepaths)}): {', '.join(filepaths[:10])}")
+            if len(filepaths) > 10:
+                context_parts.append(f"... and {len(filepaths) - 10} more")
+        
+        if diff_stat:
+            context_parts.append(f"\nDiff summary: {diff_stat}")
+        
+        if file_diffs:
+            total_changes = sum(len(d) for d in file_diffs.values())
+            if total_changes < 5000:
+                context_parts.append("\nCode changes:")
+                for filepath, diff_content in list(file_diffs.items())[:3]:
+                    context_parts.append(f"\n{filepath}:")
+                    context_parts.append(diff_content[:1000])
+        
+        context = "\n".join(context_parts)
+        
+        summary_text = call_llm(
+            COMMIT_SUMMARY_SYSTEM_PROMPT,
+            context,
+            max_tokens=500,
+            timeout=timeout,
+        )
+        
+        if not summary_text or not summary_text.strip():
+            return None
+        
+        file_topics = _extract_topics_from_paths(commit.files)
+        subject_topics = _extract_topics_from_subject(commit.subject)
+        all_topics = sorted(set(file_topics + subject_topics + ["commit-summary"]))
+        
+        all_diff_content = "\n".join(file_diffs.values())
+        tech_entities = _extract_tech_entities_from_diff(all_diff_content)
+        entities = [commit.author_name]
+        entities.extend(tech_entities)
+        entities.extend(filepaths[:10])
+        
+        summary_id = hashlib.sha256(f"{commit.sha}:summary".encode()).hexdigest()[:24]
+        return {
+            "id": summary_id,
+            "text": summary_text.strip(),
+            "memory_type": "semantic",
+            "topics": all_topics,
+            "entities": entities,
+            "namespace": namespace,
+            "user_id": user_id or commit.author_email,
+            "session_id": f"git-{commit.sha[:12]}",
+        }
+    except LLMError as e:
+        return None
+    except Exception:
+        return None
