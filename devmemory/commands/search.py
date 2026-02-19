@@ -222,6 +222,7 @@ def run_search(
     threshold: float = DEFAULT_THRESHOLD,
     raw: bool = False,
     recency_boost: float = 0.0,
+    all_repos: bool = False,
 ):
     config = DevMemoryConfig.load()
     client = AMSClient(base_url=config.ams_endpoint)
@@ -232,7 +233,10 @@ def run_search(
         console.print(f"[red]Cannot reach AMS at {config.ams_endpoint}: {e}[/red]")
         raise typer.Exit(1)
 
-    ns = namespace or config.namespace or None
+    if all_repos:
+        ns = namespace or None
+    else:
+        ns = namespace or config.get_active_namespace()
     topics = topic if topic else None
     mtype = memory_type or None
 

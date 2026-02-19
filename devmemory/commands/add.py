@@ -46,7 +46,7 @@ def run_add(
         "id": _generate_id(text),
         "text": text,
         "memory_type": memory_type,
-        "namespace": config.namespace or "default",
+        "namespace": config.get_active_namespace(),
     }
     if topics:
         memory["topics"] = topics
@@ -124,7 +124,7 @@ def _interactive_prompt(
         "id": _generate_id(text),
         "text": text,
         "memory_type": type_input,
-        "namespace": config.namespace or "default",
+        "namespace": config.get_active_namespace(),
     }
     if topics:
         memory["topics"] = topics

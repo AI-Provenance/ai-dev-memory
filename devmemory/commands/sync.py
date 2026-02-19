@@ -83,18 +83,19 @@ def run_sync(
     all_memories = []
     synced_shas = []
 
+    ns = config.get_active_namespace()
     for n in notes_to_sync:
         if n.has_ai_note:
             memories = format_commit_as_memories(
                 n, 
-                namespace=config.namespace, 
+                namespace=ns, 
                 user_id=config.user_id,
                 local_enrichment=local_enrichment
             )
         else:
             memories = format_commit_without_ai(
                 n, 
-                namespace=config.namespace, 
+                namespace=ns, 
                 user_id=config.user_id
             )
 

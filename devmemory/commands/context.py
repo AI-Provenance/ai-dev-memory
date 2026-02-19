@@ -267,7 +267,7 @@ def run_context(
     if not quiet:
         console.print(f"[dim]Searching memory with {len(queries)} queries...[/dim]")
 
-    ns = config.namespace or None
+    ns = config.get_active_namespace()
     results = _search_with_dedup(client, queries, ns)
     coordination = _fetch_coordination_state(client)
     content = _render_context(signals, results, coordination)

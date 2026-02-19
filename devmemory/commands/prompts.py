@@ -21,9 +21,13 @@ def _sort_by_created(results: list[MemoryResult]) -> list[MemoryResult]:
 def run_prompts(
     limit: int = 50,
     namespace: str = "",
+    all_repos: bool = False,
 ) -> None:
     config = DevMemoryConfig.load()
-    ns = namespace or config.namespace or None
+    if all_repos:
+        ns = namespace or None
+    else:
+        ns = namespace or config.get_active_namespace()
     base_url = config.ams_endpoint or "http://localhost:8000"
     client = AMSClient(base_url=base_url)
 
