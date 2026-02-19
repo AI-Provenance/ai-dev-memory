@@ -16,7 +16,12 @@ The project also maintains **knowledge files** in `.devmemory/knowledge/*.md` â€
 **Always search memory first.** Before writing code, look up what's already known:
 
 ```
-search_long_term_memory(text="<describe what you're about to work on>")
+search_long_term_memory(text="<describe what you're about to work on>", namespace="{{NAMESPACE}}")
+```
+
+Search for a specific topic:
+```
+search_long_term_memory(text="...", topics=["<topic>"], namespace="{{NAMESPACE}}")
 ```
 
 Search for:
@@ -27,7 +32,7 @@ Search for:
 
 If your task involves a specific file or module, also search for it:
 ```
-search_long_term_memory(text="<module or file name> issues and patterns")
+search_long_term_memory(text="<module or file name> issues and patterns", namespace="{{NAMESPACE}}")
 ```
 
 Also **read the relevant knowledge files** before starting:
@@ -97,7 +102,8 @@ create_long_term_memories(memories=[{
     "text": "<what was decided and why>",
     "memory_type": "semantic",
     "topics": ["<relevant>", "<topics>"],
-    "entities": ["<technologies>", "<modules>"]
+    "entities": ["<technologies>", "<modules>"],
+    "namespace": "{{NAMESPACE}}"
 }])
 ```
 

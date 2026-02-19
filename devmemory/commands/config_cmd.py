@@ -3,7 +3,10 @@ from rich.console import Console
 from rich.table import Table
 from dataclasses import asdict
 
-from devmemory.core.config import DevMemoryConfig
+import json
+from pathlib import Path
+from devmemory.core.config import DevMemoryConfig, CONFIG_FILE
+from devmemory.core.utils import get_repo_root
 
 app = typer.Typer()
 console = Console()
@@ -11,28 +14,71 @@ console = Console()
 
 @app.command("show")
 def show():
+    # Load global only for comparison
+    global_config = DevMemoryConfig()
+    if CONFIG_FILE.exists():
+        try:
+            raw = json.loads(CONFIG_FILE.read_text())
+            for k, v in raw.items():
+                if k in global_config.__dataclass_fields__:
+                    setattr(global_config, k, v)
+        except Exception:
+            pass
+
     config = DevMemoryConfig.load()
+    repo_root = get_repo_root()
+    local_exists = False
+    local_data = {}
+    if repo_root:
+        local_file = Path(repo_root) / ".devmemory" / "config.json"
+        if local_file.exists():
+            local_exists = True
+            try:
+                local_data = json.loads(local_file.read_text())
+            except Exception:
+                pass
+
     table = Table(title="DevMemory Configuration", show_header=True, border_style="dim")
     table.add_column("Key", style="bold")
     table.add_column("Value")
+    table.add_column("Source", style="dim")
 
     for key, value in asdict(config).items():
-        display = value if value else "[dim]not set[/dim]"
-        table.add_row(key, str(display))
+        display = str(value) if value else "[dim]not set[/dim]"
+        source = "default"
+        if key in local_data:
+            source = "[cyan]local[/cyan]"
+        elif CONFIG_FILE.exists():
+            # Check if it was in global
+            try:
+                raw_global = json.loads(CONFIG_FILE.read_text())
+                if key in raw_global:
+                    source = "global"
+            except Exception:
+                pass
+        
+        table.add_row(key, display, source)
 
     console.print(table)
+    
+    if repo_root:
+        active_ns = config.get_active_namespace()
+        console.print(f"\n[dim]Active scoped namespace:[/dim] [bold cyan]{active_ns}[/bold cyan]")
+        console.print(f"[dim]Repository Root:[/dim] [dim]{repo_root}[/dim]")
 
 
 @app.command("set")
 def set_value(
     key: str = typer.Argument(..., help="Config key to set."),
     value: str = typer.Argument(..., help="Value to set."),
+    local: bool = typer.Option(False, "--local", "-l", help="Save to local repository configuration."),
 ):
     config = DevMemoryConfig.load()
     try:
-        config.set_value(key, value)
-        console.print(f"[green]Set {key} = {value}[/green]")
-    except KeyError as e:
+        config.set_value(key, value, local=local)
+        loc_str = " (local)" if local else " (global)"
+        console.print(f"[green]Set {key} = {value}{loc_str}[/green]")
+    except Exception as e:
         console.print(f"[red]{e}[/red]")
         raise typer.Exit(1)
 

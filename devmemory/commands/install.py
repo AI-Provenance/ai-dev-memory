@@ -89,6 +89,12 @@ def _install_single_rule(repo_root: str, filename: str) -> bool:
         return False
 
     rule_content = rule_source.read_text()
+    
+    # Template replacement
+    if "{{NAMESPACE}}" in rule_content:
+        config = DevMemoryConfig.load()
+        ns = config.get_active_namespace()
+        rule_content = rule_content.replace("{{NAMESPACE}}", ns)
 
     if rule_dest.exists():
         existing = rule_dest.read_text()
