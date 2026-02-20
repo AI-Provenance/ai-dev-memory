@@ -15,8 +15,245 @@ from devmemory.core.memory_formatter import (
     generate_commit_summary,
 )
 from devmemory.core.ams_client import AMSClient
+from devmemory.core.memory_formatter import generate_commit_summary
+from datetime import datetime, timezone
 
 console = Console()
+
+
+def _is_significant_change(notes: list) -> bool:
+    """Determine if a batch of commits represents significant changes"""
+    if len(notes) < 3:
+        return False
+    
+    # Check for architectural keywords in commit messages
+    architectural_keywords = [
+        "refactor", "architecture", "redesign", "migrate", "restructure",
+        "component", "module", "interface", "contract", "protocol"
+    ]
+    
+    significant_count = 0
+    for note in notes:
+        subject_lower = note.subject.lower()
+        body_lower = note.body.lower() if note.body else ""
+        
+        # Check for architectural keywords
+        if any(kw in subject_lower or kw in body_lower for kw in architectural_keywords):
+            significant_count += 1
+        
+        # Check for significant file changes
+        if len(note.files) > 5:  # Many files changed
+            significant_count += 1
+        
+        # Check for AI tool usage (indicates complex changes)
+        if note.has_ai_note and len(note.prompts) > 2:
+            significant_count += 1
+    
+    return significant_count >= 2
+
+
+def _trigger_auto_summarization(client: AMSClient, config: DevMemoryConfig, state: SyncState, 
+                               notes: list, quiet: bool):
+    """Automatically create project and architecture summaries when significant changes are detected"""
+    
+    if not _is_significant_change(notes):
+        return
+    
+    newest_sha = notes[0].sha
+    ns = config.get_active_namespace()
+    
+    # Check if we need to create a project summary
+    should_create_project = False
+    if not state.last_project_summary_sha:
+        should_create_project = True
+    else:
+        # Create project summary every 20 commits or when significant architectural changes
+        project_commits_since = _count_commits_since(state.last_project_summary_sha, notes)
+        should_create_project = project_commits_since >= 20 or _has_architectural_changes(notes)
+    
+    # Check if we need to create an architecture summary
+    should_create_architecture = False
+    if not state.last_architecture_summary_sha:
+        should_create_architecture = True
+    else:
+        # Create architecture summary every 50 commits or when major architectural changes
+        arch_commits_since = _count_commits_since(state.last_architecture_summary_sha, notes)
+        should_create_architecture = arch_commits_since >= 50 or _has_major_architectural_changes(notes)
+    
+    if not (should_create_project or should_create_architecture):
+        return
+    
+    if not quiet:
+        console.print(f"[dim]Detected significant changes - generating summaries...[/dim]")
+    
+    try:
+        # Generate project summary
+        if should_create_project:
+            project_summary = _generate_project_summary_from_commits(notes, ns, config.user_id)
+            if project_summary:
+                client.create_memories([project_summary])
+                state.mark_project_summary(newest_sha)
+                if not quiet:
+                    console.print(f"[green]✓ Generated project summary for {len(notes)} commits[/green]")
+        
+        # Generate architecture summary
+        if should_create_architecture:
+            arch_summary = _generate_architecture_summary_from_commits(notes, ns, config.user_id)
+            if arch_summary:
+                client.create_memories([arch_summary])
+                state.mark_architecture_summary(newest_sha)
+                if not quiet:
+                    console.print(f"[green]✓ Generated architecture summary for {len(notes)} commits[/green]")
+        
+    except Exception as e:
+        if not quiet:
+            console.print(f"[yellow]⚠ Auto-summarization failed (non-blocking): {e}[/yellow]")
+
+
+def _count_commits_since(last_sha: str, notes: list) -> int:
+    """Count how many commits have occurred since the last summary"""
+    try:
+        # Find the index of the last summary commit
+        last_index = next(i for i, n in enumerate(notes) if n.sha == last_sha)
+        return len(notes) - last_index
+    except StopIteration:
+        return len(notes)
+
+
+def _has_architectural_changes(notes: list) -> bool:
+    """Check if commits contain architectural changes"""
+    architectural_keywords = [
+        "refactor", "architecture", "redesign", "migrate", "restructure",
+        "component", "module", "interface", "contract", "protocol"
+    ]
+    
+    return any(
+        any(kw in (note.subject + " " + note.body).lower() for kw in architectural_keywords)
+        for note in notes
+    )
+
+
+def _has_major_architectural_changes(notes: list) -> bool:
+    """Check if commits contain major architectural changes"""
+    major_keywords = [
+        "major refactor", "complete redesign", "architecture overhaul",
+        "migration to", "new framework", "rewrite", "rearchitecture"
+    ]
+    
+    return any(
+        any(kw in (note.subject + " " + note.body).lower() for kw in major_keywords)
+        for note in notes
+    )
+
+
+def _generate_project_summary_from_commits(notes: list, namespace: str, user_id: str) -> dict:
+    """Generate a project-level summary from recent commits"""
+    from devmemory.commands.summarize import PROJECT_SUMMARY_PROMPT
+    
+    # Combine commit information
+    context_parts = [f"Analyzing {len(notes)} recent commits:"]
+    
+    for i, note in enumerate(notes[:10]):  # Limit to 10 most recent
+        context_parts.append(f"\n{i+1}. {note.subject}")
+        if note.body:
+            context_parts.append(f"   {note.body[:200]}")
+        
+        # Add file changes
+        files = [f.filepath for f in note.files[:5]]
+        if files:
+            context_parts.append(f"   Files: {', '.join(files)}")
+        
+        # Add AI usage info
+        if note.has_ai_note:
+            agents = set()
+            for pd in note.prompts.values():
+                if pd.tool:
+                    agents.add(pd.tool)
+            if agents:
+                context_parts.append(f"   AI Agents: {', '.join(agents)}")
+    
+    context = "\n".join(context_parts)
+    
+    try:
+        # Use the project summary prompt
+        summary_text = generate_commit_summary.__wrapped__(
+            notes[0],  # Use first commit as representative
+            namespace=namespace,
+            user_id=user_id,
+            timeout=30.0
+        )
+        
+        if summary_text and 'text' in summary_text:
+            return {
+                "id": f"project-summary-{notes[0].sha[:12]}",
+                "text": f"Project Summary: {summary_text['text']}",
+                "memory_type": "semantic",
+                "topics": ["project-summary", "architecture", "evolution"],
+                "entities": [namespace, "project"],
+                "namespace": namespace,
+                "user_id": user_id,
+                "session_id": f"auto-summary-{notes[0].sha[:12]}",
+            }
+    except Exception:
+        pass
+    
+    return None
+
+
+def _generate_architecture_summary_from_commits(notes: list, namespace: str, user_id: str) -> dict:
+    """Generate an architecture-level summary from recent commits"""
+    from devmemory.commands.summarize import ARCHITECTURE_SUMMARY_PROMPT
+    
+    # Focus on architectural aspects
+    arch_commits = [n for n in notes if _has_architectural_changes([n])]
+    
+    if not arch_commits:
+        return None
+    
+    context_parts = [f"Analyzing {len(arch_commits)} architectural commits:"]
+    
+    for i, note in enumerate(arch_commits[:15]):  # More commits for architecture
+        context_parts.append(f"\n{i+1}. {note.subject}")
+        if note.body:
+            context_parts.append(f"   {note.body[:300]}")
+        
+        # Add file changes
+        files = [f.filepath for f in note.files[:8]]
+        if files:
+            context_parts.append(f"   Files: {', '.join(files)}")
+        
+        # Add architectural details
+        if note.has_ai_note and note.stats:
+            stats = note.stats
+            if stats.ai_additions > 50 or stats.human_additions > 100:
+                context_parts.append(f"   Significant changes: {stats.ai_additions} AI lines, {stats.human_additions} human lines")
+    
+    context = "\n".join(context_parts)
+    
+    try:
+        # Generate summary for the most significant architectural commit
+        summary_text = generate_commit_summary.__wrapped__(
+            arch_commits[0],
+            namespace=namespace,
+            user_id=user_id,
+            timeout=30.0
+        )
+        
+        if summary_text and 'text' in summary_text:
+            return {
+                "id": f"architecture-summary-{notes[0].sha[:12]}",
+                "text": f"Architecture Summary: {summary_text['text']}",
+                "memory_type": "semantic",
+                "topics": ["architecture-summary", "design", "patterns"],
+                "entities": [namespace, "architecture"],
+                "namespace": namespace,
+                "user_id": user_id,
+                "session_id": f"auto-summary-{notes[0].sha[:12]}",
+            }
+    except Exception:
+        pass
+    
+    return None
 
 
 def run_sync(
@@ -156,6 +393,16 @@ def run_sync(
         except Exception as e:
             if not quiet:
                 console.print(f"[yellow]⚠ Summarization failed (non-blocking): {e}[/yellow]")
+
+    # Auto-summarization for project and architecture levels
+    if config.auto_summarize and len(notes_to_sync) >= 3:  # Only trigger for significant batches
+        _trigger_auto_summarization(
+            client=client,
+            config=config,
+            state=state,
+            notes=notes_to_sync,
+            quiet=quiet
+        )
 
     newest_sha = notes_to_sync[0].sha
     state.mark_synced(newest_sha, count=total_synced)

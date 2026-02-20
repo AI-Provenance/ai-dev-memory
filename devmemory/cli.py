@@ -1,4 +1,5 @@
 import typer
+from typing import Optional
 from devmemory.commands.config_cmd import app as config_app
 from devmemory.commands.add import run_add
 from devmemory.commands.context import run_context
@@ -9,6 +10,7 @@ from devmemory.commands.search import run_search
 from devmemory.commands.status import run_status
 from devmemory.commands.sync import run_sync
 from devmemory.commands.why import run_why
+from devmemory.commands.summarize import run_summarize, run_generate_architecture_summary
 
 app = typer.Typer(
     name="devmemory",
@@ -124,6 +126,33 @@ def why(
 ):
     """Explain why a file (or function) exists and how it evolved."""
     run_why(filepath=filepath, function=function, limit=limit, raw=raw, verbose=verbose)
+
+
+@app.command()
+def summarize(
+    view_type: str = typer.Option("project", "--type", "-t", help="Type of summary: project or architecture."),
+    time_window: Optional[int] = typer.Option(None, "--time-window", "-w", help="Time window in days for summary."),
+    manual: bool = typer.Option(False, "--manual", "-m", help="Generate manual summary instead of creating AMS view."),
+    list_views: bool = typer.Option(False, "--list", "-l", help="List all summary views."),
+    delete_view: Optional[str] = typer.Option(None, "--delete", "-d", help="Delete a specific summary view by ID."),
+):
+    """Create and manage project-level summaries using Redis AMS summary views."""
+    run_summarize(
+        view_type=view_type,
+        time_window=time_window,
+        manual=manual,
+        list_views=list_views,
+        delete_view=delete_view
+    )
+
+
+@app.command()
+def architecture(
+    output: str = typer.Option("architecture-summary.md", "--output", "-o", help="Output file path."),
+    time_window: int = typer.Option(30, "--time-window", "-w", help="Time window in days for analysis."),
+):
+    """Generate comprehensive architecture summary document."""
+    run_generate_architecture_summary(output=output, time_window=time_window)
 
 
 @app.command()

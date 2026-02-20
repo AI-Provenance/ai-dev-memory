@@ -20,6 +20,7 @@ HOOK_SCRIPT = f"""{HOOK_MARKER}
 
 RULE_FILENAME = "devmemory.mdc"
 CONTEXT_RULE_FILENAME = "devmemory-context.mdc"
+COLD_START_RULE_FILENAME = "devmemory-cold-start.mdc"
 
 CHECKOUT_HOOK_MARKER = "# >>> devmemory post-checkout hook >>>"
 CHECKOUT_HOOK_END = "# <<< devmemory post-checkout hook <<<"
@@ -105,10 +106,11 @@ def _install_single_rule(repo_root: str, filename: str) -> bool:
     return True
 
 
-def _install_cursor_rules(repo_root: str) -> tuple[bool, bool]:
+def _install_cursor_rules(repo_root: str) -> tuple[bool, bool, bool]:
     main_ok = _install_single_rule(repo_root, RULE_FILENAME)
     context_ok = _install_single_rule(repo_root, CONTEXT_RULE_FILENAME)
-    return main_ok, context_ok
+    cold_start_ok = _install_single_rule(repo_root, COLD_START_RULE_FILENAME)
+    return main_ok, context_ok, cold_start_ok
 
 
 def _install_cursor_mcp_config(mcp_endpoint: str) -> bool:
@@ -227,7 +229,7 @@ def run_install(
         console.print("[dim]─[/dim] Antigravity MCP config skipped")
 
     if not skip_rule:
-        main_ok, context_ok = _install_cursor_rules(repo_root)
+        main_ok, context_ok, cold_start_ok = _install_cursor_rules(repo_root)
         if main_ok:
             console.print(f"[green]✓[/green] Cursor rule installed (.cursor/rules/{RULE_FILENAME})")
         else:
@@ -236,6 +238,10 @@ def run_install(
             console.print(f"[green]✓[/green] Context rule installed (.cursor/rules/{CONTEXT_RULE_FILENAME})")
         else:
             console.print(f"[red]✗[/red] Failed to install context rule ({CONTEXT_RULE_FILENAME})")
+        if cold_start_ok:
+            console.print(f"[green]✓[/green] Cold-start rule installed (.cursor/rules/{COLD_START_RULE_FILENAME})")
+        else:
+            console.print(f"[red]✗[/red] Failed to install cold-start rule ({COLD_START_RULE_FILENAME})")
     else:
         console.print("[dim]─[/dim] Cursor rules skipped")
 
