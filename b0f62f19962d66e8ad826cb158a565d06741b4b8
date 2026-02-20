@@ -1,0 +1,76 @@
+devmemory/core/llm_client.py
+  58893c2db140cc73 118-119,152-157
+devmemory/commands/why.py
+  58893c2db140cc73 297,309-313
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.3",
+  "base_commit_sha": "b0f62f19962d66e8ad826cb158a565d06741b4b8",
+  "prompts": {
+    "58893c2db140cc73": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "39444201-d875-44e2-8088-97a1d018f169",
+        "model": "default"
+      },
+      "human_author": "Shahriyar Rzayev <rzayev.sehriyar@gmail.com>",
+      "messages": [
+        {
+          "type": "user",
+          "text": "@/home/shako/.cursor/projects/home-shako-REPOS-Indie-Hacking-ai-dev-memory/terminals/9.txt:997-1007 we have new command why, but it returns empty result. Investigate why.",
+          "timestamp": "2026-02-15T15:07:26.846Z"
+        },
+        {
+          "type": "assistant",
+          "text": "Investigating why the `devmemory why` command returns an empty result. Checking the implementation and how the explanation is produced.",
+          "timestamp": "2026-02-15T15:07:38.249Z"
+        },
+        {
+          "type": "assistant",
+          "text": "Checking the LLM client to see when it returns None or an empty string:",
+          "timestamp": "2026-02-15T15:07:49.929Z"
+        },
+        {
+          "type": "assistant",
+          "text": "Checking the AMS client's `MemoryResult` and `score` (distance vs similarity):",
+          "timestamp": "2026-02-15T15:08:03.653Z"
+        },
+        {
+          "type": "assistant",
+          "text": "Identifying the cause: the explanation Panel is only printed when `answer` is truthy (lines 298–310). The LLM is returning an empty string, so the Panel is skipped and only the Sources table is shown. Adding handling for an empty synthesis result: show a short message and fall back to raw output.",
+          "timestamp": "2026-02-15T15:08:10.798Z"
+        },
+        {
+          "type": "assistant",
+          "text": "Making the LLM client robust to empty or missing API response content:",
+          "timestamp": "2026-02-15T15:08:22.994Z"
+        },
+        {
+          "type": "assistant",
+          "text": "Normalizing LLM response handling so we always return a string and avoid None or missing content:",
+          "timestamp": "2026-02-15T15:08:27.615Z"
+        },
+        {
+          "type": "assistant",
+          "text": "Keeping the LLM response unchanged; only normalizing None/missing to \"\".",
+          "timestamp": "2026-02-15T15:08:37.235Z"
+        },
+        {
+          "type": "assistant",
+          "text": "Running the why and LLM tests to ensure nothing's broken:",
+          "timestamp": "2026-02-15T15:08:42.169Z"
+        },
+        {
+          "type": "assistant",
+          "text": "Summary of what was wrong and what was changed:\n\n**Cause**\n\n- The command only prints the explanation when `answer` is truthy (line 298).\n- The LLM was returning an empty string (or the API was returning `null`/missing content), so the Panel was never printed and only the “Sources” table appeared.\n\n**Changes**\n\n1. **`devmemory/commands/why.py`**\n   - Treat empty/whitespace the same as “no explanation”: if the model returns nothing, we now print a short message and fall back to raw output (memories + git history) instead of showing only the Sources table.\n\n2. **`devmemory/core/llm_client.py`**\n   - **OpenAI:** Handle missing/`null` `choices[0].message.content` and return `\"\"` instead of raising or returning `None`.\n   - **Anthropic:** Handle missing or empty `content` and non-dict blocks and return `\"\"` instead of raising.\n\nSo when the model returns no text you get:\n- A clear message: “Model returned no explanation.”\n- Automatic fallback to raw output so you still see the 15 memories and git history.\n\nRun again:\n\n```bash\ndevmemory why ./devmemory/commands/why.py\n```\n\nYou should either see the synthesized explanation or the new message plus the raw panels. If you still get an empty explanation with a valid API key, the next step is to inspect the actual API response (e.g. logging or a quick script) to see why the model returns no content.",
+          "timestamp": "2026-02-15T15:08:53.693Z"
+        }
+      ],
+      "total_additions": 16,
+      "total_deletions": 5,
+      "accepted_lines": 14,
+      "overriden_lines": 0
+    }
+  }
+}

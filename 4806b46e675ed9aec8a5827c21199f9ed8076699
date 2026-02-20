@@ -1,0 +1,23 @@
+README.md
+  4097f8f1253aa7b0 3,5,13,16,18-20,23,25-29,38,63,73-74,78,80,82-101,104,107-131,133-144,146-154,158,167,169-176,179,181-194,219,221,223,238-242,244
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.2",
+  "base_commit_sha": "4806b46e675ed9aec8a5827c21199f9ed8076699",
+  "prompts": {
+    "4097f8f1253aa7b0": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "715a9e69-35a6-4956-98a2-6e32176cc6de",
+        "model": "claude-4.6-opus-high-thinking"
+      },
+      "human_author": "Shahriyar Rzayev <rzayev.sehriyar@gmail.com>",
+      "messages": [],
+      "total_additions": 136,
+      "total_deletions": 31,
+      "accepted_lines": 125,
+      "overriden_lines": 1
+    }
+  }
+}

@@ -1,0 +1,33 @@
+devmemory/cli.py
+  d7754e7883ca3c40 50-71
+devmemory/rules/devmemory.mdc
+  d7754e7883ca3c40 12-13,33-36,42-91,93,115,117,119,121-126,128-133,135-141,151,174,183-201
+devmemory/commands/add.py
+  d7754e7883ca3c40 1-160
+.devmemory/knowledge/gotchas.md
+  d7754e7883ca3c40 1-23
+.devmemory/knowledge/architecture.md
+  d7754e7883ca3c40 1-30
+devmemory/commands/learn.py
+  d7754e7883ca3c40 1-216
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.2",
+  "base_commit_sha": "b0abbb04ad13918ce8de5d063f01e2f9c4770d09",
+  "prompts": {
+    "d7754e7883ca3c40": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "51f5320a-0ee6-4252-867d-8a8b5be3aacb",
+        "model": "claude-4.6-opus-high-thinking"
+      },
+      "human_author": "Shahriyar Rzayev <rzayev.sehriyar@gmail.com>",
+      "messages": [],
+      "total_additions": 557,
+      "total_deletions": 9,
+      "accepted_lines": 557,
+      "overriden_lines": 0
+    }
+  }
+}
