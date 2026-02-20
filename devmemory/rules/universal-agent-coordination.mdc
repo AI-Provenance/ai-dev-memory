@@ -1,0 +1,257 @@
+--- 
+description: Universal agent coordination - works with ALL AI coding agents
+alwaysApply: true
+priority: 20
+---
+
+# Universal Agent Coordination System
+
+**This rule works with ANY AI coding agent** (Cursor, Claude, Copilot, Mistral, etc.)
+
+## Core Principle
+
+All agents share the same memory system. What one agent learns, all agents can use.
+
+## 1. Memory Access Pattern (Universal)
+
+```python
+# Import the universal tools
+from devmemory.agent_tools import get_universal_agent_tools
+
+# Get tools for current project
+memory = get_universal_agent_tools()
+
+# Search memories (works with any agent)
+results = memory.search_project_memory(
+    query="<your task description>",
+    topics=["architecture", "patterns"],
+    limit=5
+)
+```
+
+## 2. Hierarchical Context Retrieval
+
+```python
+# Get complete context for your task
+context = memory.get_hierarchical_context("implement authentication system")
+
+# Context structure:
+# {
+#   "project": [...],      # High-level summaries
+#   "architecture": [...], # Design patterns
+#   "commits": [...],      # Specific implementations
+#   "coordination": {...}   # Active sessions
+# }
+```
+
+## 3. Cross-Agent Learning
+
+```python
+# Store what you've learned (universal format)
+memory.store_agent_learning(
+    learning="Use OAuth2 with PKCE for mobile auth to prevent token theft",
+    learning_type="semantic",
+    topics=["security", "authentication", "mobile"],
+    entities=["OAuth2", "PKCE"]
+)
+```
+
+## 4. Reusable Skills System
+
+```python
+# Check if skill exists
+skill = memory.get_agent_skill("authentication_pattern")
+
+if not skill:
+    # Store new skill for all agents to use
+    memory.store_agent_skill(
+        skill_name="authentication_pattern",
+        skill_description="Secure authentication pattern using JWT with refresh tokens",
+        implementation="""
+1. Use short-lived access tokens (15min)
+2. Long-lived refresh tokens (7days) with rotation
+3. Store only in HTTP-only secure cookies
+4. Validate token signature and claims
+        """,
+        use_cases=[
+            "Web applications",
+            "Mobile apps",
+            "API security"
+        ]
+    )
+```
+
+## 5. Agent-Specific Optimizations
+
+### For Claude Agents:
+```python
+from devmemory.agent_tools import ClaudeMemoryTools
+claude_memory = ClaudeMemoryTools()
+# Uses Claude-optimized query patterns
+```
+
+### For Copilot Agents:
+```python
+from devmemory.agent_tools import CopilotMemoryTools
+copilot_memory = CopilotMemoryTools()
+# Uses Copilot-optimized context format
+```
+
+### For Mistral Agents:
+```python
+from devmemory.agent_tools import MistralMemoryTools
+mistral_memory = MistralMemoryTools()
+# Uses Mistral-optimized knowledge representation
+```
+
+## 6. Memory Query Patterns for Common Tasks
+
+### Starting New Feature:
+```python
+context = memory.get_hierarchical_context("add user profile management")
+# Check project patterns, architecture decisions, past implementations
+```
+
+### Debugging Issue:
+```python
+errors = memory.search_project_memory(
+    query="TypeError in authentication module",
+    topics=["bugfix", "gotchas"],
+    limit=3
+)
+```
+
+### API Integration:
+```python
+patterns = memory.search_project_memory(
+    query="REST API error handling patterns",
+    topics=["api", "patterns"],
+    entities=["FastAPI"]
+)
+```
+
+## 7. Coordination Protocol
+
+```python
+# Check who's working on what
+coordination = memory.get_hierarchical_context("current work")
+active_sessions = coordination["coordination"]["active_sessions"]
+
+# Announce your work
+memory.store_agent_learning(
+    learning="Currently implementing OAuth2 provider integration",
+    topics=["active-work", "coordination"],
+    entities=["authentication"]
+)
+```
+
+## 8. Memory Types Cheat Sheet
+
+| Type | Purpose | When to Use |
+|------|---------|--------------|
+| `project-summary` | High-level overview | Start of session |
+| `architecture-summary` | Design evolution | Architecture work |
+| `semantic` | General knowledge | Patterns, decisions |
+| `episodic` | Specific events | Changes, migrations |
+| `skills` | Reusable methods | Cross-agent sharing |
+
+## 9. Performance Tips
+
+```python
+# Filter by time (last 7 days)
+recent = memory.search_project_memory(
+    query="auth changes",
+    topics=["recent"],
+    limit=5
+)
+
+# Filter by technology
+tech_specific = memory.search_project_memory(
+    query="Redis caching patterns",
+    entities=["Redis", "caching"],
+    limit=5
+)
+```
+
+## 10. Universal Agent Workflow
+
+```python
+# 1. Initialize
+memory = get_universal_agent_tools()
+
+# 2. Get Context
+context = memory.get_hierarchical_context(task_description)
+
+# 3. Search Specifics
+specifics = memory.search_project_memory(detailed_query)
+
+# 4. Implement (using context)
+# ... write code ...
+
+# 5. Store Learnings
+memory.store_agent_learning(what_you_learned)
+
+# 6. Update Coordination
+memory.store_agent_learning(current_status)
+```
+
+## 11. Cross-Agent Collaboration Example
+
+**Agent A (Claude) learns something:**
+```python
+claude_memory = ClaudeMemoryTools()
+claude_memory.store_agent_learning(
+    "Use Redis JSON for structured caching in FastAPI",
+    topics=["caching", "performance"],
+    entities=["Redis", "FastAPI"]
+)
+```
+
+**Agent B (Copilot) uses that knowledge:**
+```python
+copilot_memory = CopilotMemoryTools()
+caching_patterns = copilot_memory.search_project_memory(
+    "Redis caching in FastAPI",
+    topics=["caching"],
+    entities=["Redis"]
+)
+# Finds Agent A's learning!
+```
+
+**Agent C (Mistral) builds on it:**
+```python
+mistral_memory = MistralMemoryTools()
+mistral_memory.store_agent_learning(
+    "Redis JSON caching + asyncio = 3x performance improvement",
+    topics=["performance", "optimization"],
+    entities=["Redis", "asyncio"]
+)
+```
+
+## 12. Memory Hygiene
+
+```python
+# Keep memories relevant
+# Store:
+✅ Architecture decisions with rationale
+✅ Patterns and conventions
+✅ Gotchas and workarounds
+✅ API quirks and limitations
+✅ Performance optimizations
+
+# Avoid:
+❌ Implementation details obvious from code
+❌ Temporary debugging notes
+❌ Personal preferences
+❌ Redundant copies of commit messages
+```
+
+## Remember: You're Part of a Team
+
+Every memory you create helps:
+- ✅ Other agents working on the same project
+- ✅ Future sessions (including your future self!)
+- ✅ New team members getting up to speed
+- ✅ Maintaining architectural consistency
+
+**The more you contribute, the smarter the whole team becomes.**
