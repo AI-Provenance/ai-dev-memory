@@ -5,6 +5,7 @@ from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 from typing import Optional
+from datetime import datetime, timedelta
 
 from devmemory.core.config import DevMemoryConfig
 from devmemory.core.ams_client import AMSClient, SummaryView
@@ -98,8 +99,6 @@ def _generate_manual_project_summary(
     time_window_days: Optional[int] = None
 ) -> str:
     """Generate a project summary by analyzing recent commits"""
-    from datetime import datetime, timedelta
-    import dateutil.parser
     
     # Get recent commits
     since_date = None
