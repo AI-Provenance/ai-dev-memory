@@ -20,6 +20,10 @@ class SyncState:
     last_synced_sha: str = ""
     last_synced_at: str = ""
     total_synced: int = 0
+    last_project_summary_sha: str = ""
+    last_architecture_summary_sha: str = ""
+    project_summary_count: int = 0
+    architecture_summary_count: int = 0
 
     @classmethod
     def load(cls, repo_root: str) -> SyncState:
@@ -38,4 +42,14 @@ class SyncState:
         self.last_synced_sha = sha
         self.last_synced_at = datetime.now(timezone.utc).isoformat()
         self.total_synced += count
+        self.save()
+
+    def mark_project_summary(self, sha: str) -> None:
+        self.last_project_summary_sha = sha
+        self.project_summary_count += 1
+        self.save()
+
+    def mark_architecture_summary(self, sha: str) -> None:
+        self.last_architecture_summary_sha = sha
+        self.architecture_summary_count += 1
         self.save()

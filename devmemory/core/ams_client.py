@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import httpx
 from dataclasses import dataclass
+from typing import Optional
 
 
 @dataclass
@@ -13,6 +14,19 @@ class MemoryResult:
     entities: list[str]
     memory_type: str
     created_at: str
+
+
+@dataclass
+class SummaryView:
+    id: str
+    name: Optional[str] = None
+    source: str = "long_term"
+    group_by: list[str] = None
+    filters: dict = None
+    time_window_days: Optional[int] = None
+    continuous: bool = False
+    prompt: Optional[str] = None
+    model_name: Optional[str] = None
 
 
 class AMSClient:
@@ -126,3 +140,33 @@ class AMSClient:
             resp = client.get("/v1/working-memory/", params=params)
             resp.raise_for_status()
             return resp.json().get("sessions", [])
+
+    # Summary View Methods
+    def list_summary_views(self) -> list[SummaryView]:
+        """List all registered summary views"""
+        with self._client() as client:
+            resp = client.get("/v1/summary-views")
+            resp.raise_for_status()
+            data = resp.json()
+            return [SummaryView(**view) for view in data]
+
+    def create_summary_view(self, view_config: dict) -> SummaryView:
+        """Create a new summary view"""
+        with self._client() as client:
+            resp = client.post("/v1/summary-views", json=view_config)
+            resp.raise_for_status()
+            return SummaryView(**resp.json())
+
+    def get_summary_view(self, view_id: str) -> SummaryView:
+        """Get a summary view by ID"""
+        with self._client() as client:
+            resp = client.get(f"/v1/summary-views/{view_id}")
+            resp.raise_for_status()
+            return SummaryView(**resp.json())
+
+    def delete_summary_view(self, view_id: str) -> dict:
+        """Delete a summary view"""
+        with self._client() as client:
+            resp = client.delete(f"/v1/summary-views/{view_id}")
+            resp.raise_for_status()
+            return resp.json()
