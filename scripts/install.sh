@@ -22,7 +22,7 @@ echo "  2. Install Git AI (if not present)"
 echo "  3. Install devmemory CLI (via uv)"
 echo "  4. Set up .env file"
 echo "  5. Start the Docker stack"
-echo "  6. Configure git hooks, Cursor MCP, and agent coordination rules"
+echo "  6. Configure git hooks, Cursor MCP, OpenCode MCP, and agent coordination rules"
 echo ""
 
 # ── Step 1: Prerequisites ──────────────────────────────────────────────────────

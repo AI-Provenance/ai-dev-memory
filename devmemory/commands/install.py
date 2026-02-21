@@ -208,10 +208,46 @@ def _install_antigravity_mcp_config(mcp_endpoint: str) -> bool:
     return True
 
 
+def _install_opencode_mcp_config(mcp_endpoint: str) -> bool:
+    opencode_dir = Path.home() / ".config" / "opencode"
+    opencode_dir.mkdir(parents=True, exist_ok=True)
+    config_path = opencode_dir / "opencode.json"
+
+    config_entry = {
+        "type": "remote",
+        "url": f"{mcp_endpoint}/sse",
+        "enabled": True,
+    }
+
+    if config_path.exists():
+        try:
+            content = config_path.read_text().strip()
+            existing = json.loads(content) if content else {}
+        except (json.JSONDecodeError, ValueError):
+            existing = {}
+    else:
+        existing = {}
+
+    servers = existing.get("mcp")
+    if not isinstance(servers, dict):
+        servers = {}
+    servers["agent-memory"] = config_entry
+    existing["mcp"] = servers
+
+    config_path.write_text(json.dumps(existing, indent=2) + "\n")
+    return True
+
+
+def _install_opencode_skills() -> tuple[bool, int]:
+    opencode_skills_dir = Path.home() / ".config" / "opencode" / "skills"
+    return _install_skills_for_agent(opencode_skills_dir)
+
+
 def run_install(
     skip_hook: bool = False,
     skip_cursor: bool = False,
     skip_antigravity: bool = False,
+    skip_opencode: bool = False,
     skip_rule: bool = False,
     skip_skills: bool = False,
     mcp_endpoint: str = "",
@@ -273,6 +309,15 @@ def run_install(
     else:
         console.print("[dim]─[/dim] Antigravity MCP config skipped")
 
+    if not skip_opencode:
+        if _install_opencode_mcp_config(endpoint):
+            console.print(f"[green]✓[/green] OpenCode MCP config written (~/.config/opencode/opencode.json)")
+            console.print(f"  [dim]MCP endpoint: {endpoint}/sse[/dim]")
+        else:
+            console.print("[red]✗[/red] Failed to write OpenCode MCP config")
+    else:
+        console.print("[dim]─[/dim] OpenCode MCP config skipped")
+
     if not skip_rule:
         main_ok, context_ok, cold_start_ok, universal_ok = _install_cursor_rules(repo_root)
         if main_ok:
@@ -308,6 +353,14 @@ def run_install(
             )
         else:
             console.print("[yellow]![/yellow] Failed to install Antigravity skills")
+
+        opencode_ok, opencode_count = _install_opencode_skills()
+        if opencode_ok:
+            console.print(
+                f"[green]✓[/green] OpenCode skills installed ({opencode_count} skills in ~/.config/opencode/skills/)"
+            )
+        else:
+            console.print("[yellow]![/yellow] Failed to install OpenCode skills")
     else:
         console.print("[dim]─[/dim] Agent skills skipped")
 
