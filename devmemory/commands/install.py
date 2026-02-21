@@ -114,6 +114,44 @@ def _install_cursor_rules(repo_root: str) -> tuple[bool, bool, bool, bool]:
     universal_ok = _install_single_rule(repo_root, UNIVERSAL_RULE_FILENAME)
     return main_ok, context_ok, cold_start_ok, universal_ok
 
+def _install_skills_for_agent(agent_skills_dir: Path) -> tuple[bool, int]:
+    repo_skills_dir = Path(__file__).resolve().parent.parent / "skills"
+    if not repo_skills_dir.exists():
+        return False, 0
+    
+    config = DevMemoryConfig.load()
+    ns = config.get_active_namespace()
+    
+    skills_installed = 0
+    for skill_dir in repo_skills_dir.iterdir():
+        if skill_dir.is_dir() and (skill_dir / "SKILL.md").exists():
+            dest_dir = agent_skills_dir / skill_dir.name
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            
+            skill_content = (skill_dir / "SKILL.md").read_text()
+            if "{{NAMESPACE}}" in skill_content:
+                skill_content = skill_content.replace("{{NAMESPACE}}", ns)
+                
+            dest_file = dest_dir / "SKILL.md"
+            if dest_file.exists():
+                existing = dest_file.read_text()
+                if existing == skill_content:
+                    skills_installed += 1
+                    continue
+            
+            dest_file.write_text(skill_content)
+            skills_installed += 1
+            
+    return True, skills_installed
+
+def _install_claude_skills() -> tuple[bool, int]:
+    claude_skills_dir = Path.home() / ".claude" / "skills"
+    return _install_skills_for_agent(claude_skills_dir)
+
+def _install_antigravity_skills() -> tuple[bool, int]:
+    antigravity_skills_dir = Path.home() / ".gemini" / "antigravity" / "skills"
+    return _install_skills_for_agent(antigravity_skills_dir)
+
 
 def _install_cursor_mcp_config(mcp_endpoint: str) -> bool:
     cursor_dir = Path.home() / ".cursor"
@@ -173,6 +211,7 @@ def run_install(
     skip_cursor: bool = False,
     skip_antigravity: bool = False,
     skip_rule: bool = False,
+    skip_skills: bool = False,
     mcp_endpoint: str = "",
 ):
     config = DevMemoryConfig.load()
@@ -250,6 +289,22 @@ def run_install(
             console.print(f"[red]✗[/red] Failed to install universal rule ({UNIVERSAL_RULE_FILENAME})")
     else:
         console.print("[dim]─[/dim] Cursor rules skipped")
+
+    if not skip_skills:
+        claude_ok, claude_count = _install_claude_skills()
+        if claude_ok:
+            console.print(f"[green]✓[/green] Claude skills installed ({claude_count} skills in ~/.claude/skills/)")
+        else:
+            console.print("[yellow]![/yellow] Failed to install Claude skills")
+            
+        anti_ok, anti_count = _install_antigravity_skills()
+        if anti_ok:
+            console.print(f"[green]✓[/green] Antigravity skills installed ({anti_count} skills in ~/.gemini/antigravity/skills/)")
+        else:
+            console.print("[yellow]![/yellow] Failed to install Antigravity skills")
+    else:
+        console.print("[dim]─[/dim] Agent skills skipped")
+
 
     if not config.user_id:
         console.print("\n[dim]Tip: Set your user ID for better memory attribution:[/dim]")

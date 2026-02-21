@@ -1,0 +1,16 @@
+---
+name: devmemory-context
+description: Refresh and read the automatically generated project context from DevMemory before diving into the codebase. Use at the beginning of a session or when working on a new branch.
+---
+
+# DevMemory Auto-Context
+
+If `.devmemory/CONTEXT.md` exists, **read it at the start of every task**.
+It contains a pre-built briefing with relevant architecture decisions,
+known gotchas, and coordination state for your current work area.
+
+Run `devmemory context` in the terminal to refresh it before starting work.
+
+This file is auto-generated based on the current git branch, changed files,
+and recent commits. It complements — but does not replace — deeper searches
+via `search_long_term_memory()` through MCP when you need specific answers.

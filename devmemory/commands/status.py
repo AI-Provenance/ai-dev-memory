@@ -47,6 +47,21 @@ def get_cursor_rules_status(repo_root: pathlib.Path) -> str:
         return "[yellow]partially installed[/yellow] (missing main rule)"
     return "[yellow]not installed[/yellow] (run: devmemory install)"
 
+def get_skills_status() -> str:
+    claude_skills_dir = pathlib.Path.home() / ".claude" / "skills"
+    antigravity_skills_dir = pathlib.Path.home() / ".gemini" / "antigravity" / "skills"
+    
+    claude_ok = (claude_skills_dir / "devmemory-memory" / "SKILL.md").exists()
+    anti_ok = (antigravity_skills_dir / "devmemory-memory" / "SKILL.md").exists()
+    
+    if claude_ok and anti_ok:
+        return "[green]installed[/green] (Claude, Antigravity)"
+    elif claude_ok:
+        return "[yellow]partially installed[/yellow] (Claude only)"
+    elif anti_ok:
+        return "[yellow]partially installed[/yellow] (Antigravity only)"
+    else:
+        return "[yellow]not installed[/yellow] (run: devmemory install)"
 
 def run_status():
     config = DevMemoryConfig.load()
@@ -106,5 +121,7 @@ def run_status():
 
     if repo_root:
         table.add_row("Cursor rules", get_cursor_rules_status(pathlib.Path(repo_root)))
+
+    table.add_row("Agent Skills", get_skills_status())
 
     console.print(table)

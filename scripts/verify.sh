@@ -179,6 +179,23 @@ else
 fi
 
 echo ""
+echo "Agent Skills:"
+CLAUDE_SKILL="$HOME/.claude/skills/devmemory-memory/SKILL.md"
+ANTI_SKILL="$HOME/.gemini/antigravity/skills/devmemory-memory/SKILL.md"
+
+if [ -f "$CLAUDE_SKILL" ]; then
+    pass "Claude Code agent skill installed"
+else
+    skip "Claude Code agent skill not installed (run: devmemory install)"
+fi
+
+if [ -f "$ANTI_SKILL" ]; then
+    pass "Antigravity agent skill installed"
+else
+    skip "Antigravity agent skill not installed (run: devmemory install)"
+fi
+
+echo ""
 echo -e "${BOLD}Results:${NC} ${GREEN}$PASS passed${NC}, ${RED}$FAIL failed${NC}, ${YELLOW}$WARN warnings${NC}"
 
 if [ "$FAIL" -gt 0 ]; then
