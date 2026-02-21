@@ -148,7 +148,7 @@ def summarize(
 
 @app.command()
 def architecture(
-    output: str = typer.Option("architecture-summary.md", "--output", "-o", help="Output file path."),
+    output: str = typer.Option(".devmemory/architecture-summary.md", "--output", "-o", help="Output file path."),
     time_window: int = typer.Option(30, "--time-window", "-w", help="Time window in days for analysis."),
 ):
     """Generate comprehensive architecture summary document."""
