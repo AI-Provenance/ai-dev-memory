@@ -7,7 +7,8 @@ import typer
 from rich.console import Console
 
 from devmemory.core.config import DevMemoryConfig
-from devmemory.core.git_ai_parser import get_repo_root, is_git_ai_installed, enable_prompt_storage_notes, install_git_ai_hooks
+from devmemory.core.git_ai_parser import is_git_ai_installed, enable_prompt_storage_notes, install_git_ai_hooks
+from devmemory.core.utils import get_repo_root
 
 console = Console()
 
@@ -91,7 +92,7 @@ def _install_single_rule(repo_root: str, filename: str) -> bool:
         return False
 
     rule_content = rule_source.read_text()
-    
+
     # Template replacement
     if "{{NAMESPACE}}" in rule_content:
         config = DevMemoryConfig.load()
@@ -114,39 +115,42 @@ def _install_cursor_rules(repo_root: str) -> tuple[bool, bool, bool, bool]:
     universal_ok = _install_single_rule(repo_root, UNIVERSAL_RULE_FILENAME)
     return main_ok, context_ok, cold_start_ok, universal_ok
 
+
 def _install_skills_for_agent(agent_skills_dir: Path) -> tuple[bool, int]:
     repo_skills_dir = Path(__file__).resolve().parent.parent / "skills"
     if not repo_skills_dir.exists():
         return False, 0
-    
+
     config = DevMemoryConfig.load()
     ns = config.get_active_namespace()
-    
+
     skills_installed = 0
     for skill_dir in repo_skills_dir.iterdir():
         if skill_dir.is_dir() and (skill_dir / "SKILL.md").exists():
             dest_dir = agent_skills_dir / skill_dir.name
             dest_dir.mkdir(parents=True, exist_ok=True)
-            
+
             skill_content = (skill_dir / "SKILL.md").read_text()
             if "{{NAMESPACE}}" in skill_content:
                 skill_content = skill_content.replace("{{NAMESPACE}}", ns)
-                
+
             dest_file = dest_dir / "SKILL.md"
             if dest_file.exists():
                 existing = dest_file.read_text()
                 if existing == skill_content:
                     skills_installed += 1
                     continue
-            
+
             dest_file.write_text(skill_content)
             skills_installed += 1
-            
+
     return True, skills_installed
+
 
 def _install_claude_skills() -> tuple[bool, int]:
     claude_skills_dir = Path.home() / ".claude" / "skills"
     return _install_skills_for_agent(claude_skills_dir)
+
 
 def _install_antigravity_skills() -> tuple[bool, int]:
     antigravity_skills_dir = Path.home() / ".gemini" / "antigravity" / "skills"
@@ -158,9 +162,7 @@ def _install_cursor_mcp_config(mcp_endpoint: str) -> bool:
     cursor_dir.mkdir(parents=True, exist_ok=True)
     mcp_path = cursor_dir / "mcp.json"
 
-    config_entry = {
-        "url": f"{mcp_endpoint}/sse"
-    }
+    config_entry = {"url": f"{mcp_endpoint}/sse"}
 
     if mcp_path.exists():
         try:
@@ -178,14 +180,14 @@ def _install_cursor_mcp_config(mcp_endpoint: str) -> bool:
 
     mcp_path.write_text(json.dumps(existing, indent=2) + "\n")
     return True
+
+
 def _install_antigravity_mcp_config(mcp_endpoint: str) -> bool:
     antigravity_dir = Path.home() / ".gemini" / "antigravity"
     antigravity_dir.mkdir(parents=True, exist_ok=True)
     mcp_path = antigravity_dir / "mcp_config.json"
 
-    config_entry = {
-        "url": f"{mcp_endpoint}/sse"
-    }
+    config_entry = {"url": f"{mcp_endpoint}/sse"}
 
     if mcp_path.exists():
         try:
@@ -227,7 +229,9 @@ def run_install(
         if install_git_ai_hooks():
             console.print("[green]✓[/green] Git AI hooks installed (to capture prompts/stats)")
         else:
-            console.print("[yellow]![/yellow] Failed to install Git AI hooks (manual: [cyan]git-ai install-hooks[/cyan])")
+            console.print(
+                "[yellow]![/yellow] Failed to install Git AI hooks (manual: [cyan]git-ai install-hooks[/cyan])"
+            )
     else:
         console.print("[yellow]![/yellow] Git AI is not installed")
         console.print("  Install it with: [cyan]curl -sSL https://usegitai.com/install.sh | bash[/cyan]")
@@ -296,15 +300,16 @@ def run_install(
             console.print(f"[green]✓[/green] Claude skills installed ({claude_count} skills in ~/.claude/skills/)")
         else:
             console.print("[yellow]![/yellow] Failed to install Claude skills")
-            
+
         anti_ok, anti_count = _install_antigravity_skills()
         if anti_ok:
-            console.print(f"[green]✓[/green] Antigravity skills installed ({anti_count} skills in ~/.gemini/antigravity/skills/)")
+            console.print(
+                f"[green]✓[/green] Antigravity skills installed ({anti_count} skills in ~/.gemini/antigravity/skills/)"
+            )
         else:
             console.print("[yellow]![/yellow] Failed to install Antigravity skills")
     else:
         console.print("[dim]─[/dim] Agent skills skipped")
-
 
     if not config.user_id:
         console.print("\n[dim]Tip: Set your user ID for better memory attribution:[/dim]")
