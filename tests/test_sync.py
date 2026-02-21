@@ -29,44 +29,51 @@ class TestSyncCommand:
     def test_sync_with_ai_notes(self, mock_ams_client, temp_git_repo, sample_commit_note, monkeypatch):
         monkeypatch.chdir(temp_git_repo)
 
+        mock_client = MagicMock()
+        mock_client.health_check.return_value = {"status": "ok"}
+        mock_client.create_memories.return_value = {"count": 1, "ids": ["test-id"]}
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+
         with patch("devmemory.commands.sync.get_ai_notes_since") as mock_notes:
             mock_notes.return_value = [sample_commit_note]
             with patch("devmemory.commands.sync.format_commit_as_memories") as mock_format:
                 mock_format.return_value = [{"text": "test memory"}]
-                with patch("devmemory.commands.sync.AMSClient") as mock_client_class:
-                    mock_client_class.return_value = mock_ams_client
-
+                with patch("devmemory.commands.sync.AMSClient", return_value=mock_client):
                     from devmemory.commands.sync import run_sync
 
                     run_sync(all_commits=True, quiet=True)
 
-    def test_sync_dry_run(self, mock_ams_client, temp_git_repo, sample_commit_note, monkeypatch):
+    def test_sync_dry_run(self, temp_git_repo, sample_commit_note, monkeypatch):
         monkeypatch.chdir(temp_git_repo)
+
+        mock_client = MagicMock()
+        mock_client.health_check.return_value = {"status": "ok"}
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
 
         with patch("devmemory.commands.sync.get_ai_notes_since") as mock_notes:
             mock_notes.return_value = [sample_commit_note]
             with patch("devmemory.commands.sync.format_commit_as_memories") as mock_format:
                 mock_format.return_value = [{"text": "test memory"}]
+                with patch("devmemory.commands.sync.AMSClient", return_value=mock_client):
+                    from devmemory.commands.sync import run_sync
 
-                from devmemory.commands.sync import run_sync
+                    with pytest.raises(typer.Exit) as exc_info:
+                        run_sync(all_commits=True, dry_run=True)
 
-                with pytest.raises(typer.Exit) as exc_info:
-                    run_sync(all_commits=True, dry_run=True)
-
-                assert exc_info.value.exit_code == 0
-                mock_ams_client.create_memories.assert_not_called()
+                    assert exc_info.value.exit_code == 0
+                    mock_client.create_memories.assert_not_called()
 
     def test_sync_ams_unreachable(self, temp_git_repo, sample_commit_note, monkeypatch):
         monkeypatch.chdir(temp_git_repo)
 
+        mock_client = MagicMock()
+        mock_client.health_check.side_effect = Exception("Connection refused")
+
         with patch("devmemory.commands.sync.get_ai_notes_since") as mock_notes:
             mock_notes.return_value = [sample_commit_note]
-
-            with patch("devmemory.commands.sync.AMSClient") as mock_client_class:
-                mock_client = MagicMock()
-                mock_client.health_check.side_effect = Exception("Connection refused")
-                mock_client_class.return_value = mock_client
-
+            with patch("devmemory.commands.sync.AMSClient", return_value=mock_client):
                 from devmemory.commands.sync import run_sync
 
                 with pytest.raises(typer.Exit) as exc_info:
@@ -87,30 +94,37 @@ class TestSyncCommand:
             has_ai_note=False,
         )
 
+        mock_client = MagicMock()
+        mock_client.health_check.return_value = {"status": "ok"}
+
         with patch("devmemory.commands.sync.get_ai_notes_since") as mock_notes:
             mock_notes.return_value = [note_without_ai]
+            with patch("devmemory.commands.sync.AMSClient", return_value=mock_client):
+                from devmemory.commands.sync import run_sync
 
-            from devmemory.commands.sync import run_sync
+                with pytest.raises(typer.Exit) as exc_info:
+                    run_sync(all_commits=True, ai_only=True)
+                assert exc_info.value.exit_code == 0
 
-            with pytest.raises(typer.Exit) as exc_info:
-                run_sync(all_commits=True, ai_only=True)
-            assert exc_info.value.exit_code == 0
-
-    def test_sync_latest_commit(self, mock_ams_client, temp_git_repo, sample_commit_note, monkeypatch):
+    def test_sync_latest_commit(self, temp_git_repo, sample_commit_note, monkeypatch):
         monkeypatch.chdir(temp_git_repo)
+
+        mock_client = MagicMock()
+        mock_client.health_check.return_value = {"status": "ok"}
+        mock_client.create_memories.return_value = {"count": 1, "ids": ["test-id"]}
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
 
         with patch("devmemory.commands.sync.get_latest_commit_note") as mock_latest:
             mock_latest.return_value = sample_commit_note
             with patch("devmemory.commands.sync.format_commit_as_memories") as mock_format:
                 mock_format.return_value = [{"text": "test memory"}]
-                with patch("devmemory.commands.sync.AMSClient") as mock_client_class:
-                    mock_client_class.return_value = mock_ams_client
-
+                with patch("devmemory.commands.sync.AMSClient", return_value=mock_client):
                     from devmemory.commands.sync import run_sync
 
                     run_sync(latest=True, quiet=True)
 
-    def test_sync_latest_no_commits(self, mock_ams_client, temp_git_repo, monkeypatch):
+    def test_sync_latest_no_commits(self, temp_git_repo, monkeypatch):
         monkeypatch.chdir(temp_git_repo)
 
         with patch("devmemory.commands.sync.get_latest_commit_note") as mock_latest:

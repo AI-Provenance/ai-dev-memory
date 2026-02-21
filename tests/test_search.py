@@ -1,29 +1,38 @@
 import pytest
 from unittest.mock import patch, MagicMock
+import typer
 
 
 class TestSearchCommand:
-    def test_search_empty_results(self, mock_ams_client, temp_git_repo, monkeypatch):
+    def test_search_empty_results(self, temp_git_repo, sample_memory_result, monkeypatch):
         monkeypatch.chdir(temp_git_repo)
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
-        mock_ams_client.search_memories.return_value = []
+        mock_client = MagicMock()
+        mock_client.health_check.return_value = {"status": "ok"}
+        mock_client.search_memories.return_value = []
 
-        from devmemory.commands.search import run_search
+        with patch("devmemory.commands.search.AMSClient", return_value=mock_client):
+            from devmemory.commands.search import run_search
 
-        run_search(query="nonexistent query", raw=True)
+            with pytest.raises(typer.Exit) as exc_info:
+                run_search(query="nonexistent query", raw=True)
+            assert exc_info.value.exit_code == 0
 
-    def test_search_with_results(self, mock_ams_client, temp_git_repo, sample_memory_result, monkeypatch):
+    def test_search_with_results(self, temp_git_repo, sample_memory_result, monkeypatch):
         monkeypatch.chdir(temp_git_repo)
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
-        mock_ams_client.search_memories.return_value = [sample_memory_result]
+        mock_client = MagicMock()
+        mock_client.health_check.return_value = {"status": "ok"}
+        mock_client.search_memories.return_value = [sample_memory_result]
 
-        from devmemory.commands.search import run_search
+        with patch("devmemory.commands.search.AMSClient", return_value=mock_client):
+            from devmemory.commands.search import run_search
 
-        run_search(query="authentication", raw=True)
+            run_search(query="authentication", raw=True)
 
-    def test_search_threshold_filtering(self, mock_ams_client, temp_git_repo, monkeypatch):
+    def test_search_threshold_filtering(self, temp_git_repo, monkeypatch):
         monkeypatch.chdir(temp_git_repo)
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
@@ -47,48 +56,64 @@ class TestSearchCommand:
             memory_type="semantic",
             created_at="2026-02-21",
         )
-        mock_ams_client.search_memories.return_value = [low_relevance, high_relevance]
 
-        from devmemory.commands.search import run_search
+        mock_client = MagicMock()
+        mock_client.health_check.return_value = {"status": "ok"}
+        mock_client.search_memories.return_value = [low_relevance, high_relevance]
 
-        run_search(query="test", threshold=0.75, raw=True)
+        with patch("devmemory.commands.search.AMSClient", return_value=mock_client):
+            from devmemory.commands.search import run_search
 
-    def test_search_with_namespace_filter(self, mock_ams_client, temp_git_repo, sample_memory_result, monkeypatch):
+            run_search(query="test", threshold=0.75, raw=True)
+
+    def test_search_with_namespace_filter(self, temp_git_repo, sample_memory_result, monkeypatch):
         monkeypatch.chdir(temp_git_repo)
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
-        mock_ams_client.search_memories.return_value = [sample_memory_result]
+        mock_client = MagicMock()
+        mock_client.health_check.return_value = {"status": "ok"}
+        mock_client.search_memories.return_value = [sample_memory_result]
 
-        from devmemory.commands.search import run_search
+        with patch("devmemory.commands.search.AMSClient", return_value=mock_client):
+            from devmemory.commands.search import run_search
 
-        run_search(query="test", namespace="custom-namespace", raw=True)
+            run_search(query="test", namespace="custom-namespace", raw=True)
 
-    def test_search_with_memory_type_filter(self, mock_ams_client, temp_git_repo, sample_memory_result, monkeypatch):
+    def test_search_with_memory_type_filter(self, temp_git_repo, sample_memory_result, monkeypatch):
         monkeypatch.chdir(temp_git_repo)
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
-        mock_ams_client.search_memories.return_value = [sample_memory_result]
+        mock_client = MagicMock()
+        mock_client.health_check.return_value = {"status": "ok"}
+        mock_client.search_memories.return_value = [sample_memory_result]
 
-        from devmemory.commands.search import run_search
+        with patch("devmemory.commands.search.AMSClient", return_value=mock_client):
+            from devmemory.commands.search import run_search
 
-        run_search(query="test", memory_type="episodic", raw=True)
+            run_search(query="test", memory_type="episodic", raw=True)
 
-    def test_search_no_git_repo(self, mock_ams_client, monkeypatch):
-        monkeypatch.setattr("devmemory.core.utils.get_repo_root", lambda: None)
+    def test_search_no_git_repo(self, monkeypatch):
+        mock_client = MagicMock()
+        mock_client.health_check.return_value = {"status": "ok"}
+        mock_client.search_memories.return_value = []
 
-        from devmemory.commands.search import run_search
+        with patch("devmemory.commands.search.AMSClient", return_value=mock_client):
+            from devmemory.commands.search import run_search
 
-        run_search(query="test", raw=True)
+            with pytest.raises(typer.Exit) as exc_info:
+                run_search(query="test", raw=True)
+            assert exc_info.value.exit_code == 0
 
     def test_search_ams_unreachable(self, temp_git_repo, monkeypatch):
         monkeypatch.chdir(temp_git_repo)
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
-        with patch("devmemory.core.ams_client.AMSClient") as mock_client_class:
-            mock_client = MagicMock()
-            mock_client.search_memories.side_effect = Exception("Connection refused")
-            mock_client_class.return_value = mock_client
+        mock_client = MagicMock()
+        mock_client.health_check.side_effect = Exception("Connection refused")
 
+        with patch("devmemory.commands.search.AMSClient", return_value=mock_client):
             from devmemory.commands.search import run_search
 
-            run_search(query="test", raw=True)
+            with pytest.raises(typer.Exit) as exc_info:
+                run_search(query="test", raw=True)
+            assert exc_info.value.exit_code == 1
