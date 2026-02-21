@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import typer
+import os
+
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
@@ -82,7 +84,7 @@ def _create_architecture_evolution_view(
         "group_by": ["namespace"],
         "filters": {
             "namespace": {"eq": namespace},
-            "topics": {"any": ["architecture", "decisions", "refactoring"]}
+            "memory_type": {"eq": "semantic"}
         },
         "prompt": ARCHITECTURE_SUMMARY_PROMPT,
         "model_name": "gpt-4o",
@@ -105,7 +107,7 @@ def _generate_manual_project_summary(
     if time_window_days:
         since_date = (datetime.now() - timedelta(days=time_window_days)).strftime("%Y-%m-%d")
     
-    commits = get_commits_since(since=since_date) if since_date else get_commits_since()
+    commits = get_commits_since(since_sha=since_date) if since_date else get_commits_since()
     
     if not commits:
         return "No commits found in the specified time range."
@@ -220,7 +222,7 @@ def _delete_summary_view(client: AMSClient, view_id: str):
 
 
 def run_generate_architecture_summary(
-    output: str = "architecture-summary.md",
+    output: str = ".devmemory/architecture-summary.md",
     time_window: Optional[int] = 30,
 ):
     """Generate a comprehensive architecture summary document"""
@@ -242,6 +244,10 @@ def run_generate_architecture_summary(
         console.print(f"[dim]Created architecture view: {view.id}[/dim]")
     except Exception as e:
         console.print(f"[yellow]Could not create architecture view: {e}[/yellow]")
+        view = None
+    
+    if os.path.dirname(output):
+        os.makedirs(os.path.dirname(output), exist_ok=True)
     
     # Write comprehensive summary
     with open(output, "w") as f:
@@ -252,6 +258,9 @@ def run_generate_architecture_summary(
         f.write(manual_summary)
         f.write(f"\n---\n\n")
         f.write(f"## Architecture Evolution\n\n")
-        f.write(f"For detailed architecture evolution analysis, check Redis AMS summary view: {view.id}\n")
+        if view:
+            f.write(f"For detailed architecture evolution analysis, check Redis AMS summary view: {view.id}\n")
+        else:
+            f.write(f"Architecture evolution view could not be created.\n")
     
     console.print(f"[green]Architecture summary written to {output}[/green]")

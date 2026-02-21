@@ -18,3 +18,4 @@ redisinsight_data/
 .DS_Store
 .devmemory/CONTEXT.md
 .devmemory/knowledge/*
+.devmemory/*
