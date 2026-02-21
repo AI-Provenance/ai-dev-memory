@@ -30,20 +30,22 @@ def sync(
     limit: int = typer.Option(50, "--limit", help="Max commits to process."),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Minimal output (single summary line)."),
     batch_size: int = typer.Option(50, "--batch-size", help="Number of memories per sync request."),
-    local_enrichment: bool = typer.Option(True, "--local-enrichment/--ams-enrichment", help="Whether to perform enrichment locally or rely on AMS."),
+    local_enrichment: bool = typer.Option(
+        True, "--local-enrichment/--ams-enrichment", help="Whether to perform enrichment locally or rely on AMS."
+    ),
     all_branches: bool = typer.Option(False, "--all-branches", help="Sync commits from all local branches."),
 ):
     """Sync Git AI notes to Redis AMS."""
     run_sync(
-        latest=latest, 
-        all_commits=all_commits, 
-        ai_only=ai_only, 
-        dry_run=dry_run, 
-        limit=limit, 
+        latest=latest,
+        all_commits=all_commits,
+        ai_only=ai_only,
+        dry_run=dry_run,
+        limit=limit,
         quiet=quiet,
         batch_size=batch_size,
         local_enrichment=local_enrichment,
-        all_branches=all_branches
+        all_branches=all_branches,
     )
 
 
@@ -54,20 +56,28 @@ def search(
     namespace: str = typer.Option("", "--namespace", "-ns", help="Filter by namespace."),
     topic: list[str] = typer.Option([], "--topic", "-t", help="Filter by topic(s)."),
     memory_type: str = typer.Option("", "--type", help="Filter by memory type (episodic, semantic)."),
-    threshold: float = typer.Option(0.75, "--threshold", help="Relevance threshold (0-1, lower=stricter). Results with distance above this are filtered."),
-    raw: bool = typer.Option(False, "--raw", help="Raw output mode: skip answer synthesis and show memory panels directly."),
-    recency_boost: float = typer.Option(0.0, "--recency", help="Apply recency boost (0.0=none, 1.0=full priority on recent)."),
+    threshold: float = typer.Option(
+        0.75,
+        "--threshold",
+        help="Relevance threshold (0-1, lower=stricter). Results with distance above this are filtered.",
+    ),
+    raw: bool = typer.Option(
+        False, "--raw", help="Raw output mode: skip answer synthesis and show memory panels directly."
+    ),
+    recency_boost: float = typer.Option(
+        0.0, "--recency", help="Apply recency boost (0.0=none, 1.0=full priority on recent)."
+    ),
 ):
     """Search the project knowledgebase with AI-powered answer synthesis."""
     run_search(
-        query=query, 
-        limit=limit, 
-        namespace=namespace, 
-        topic=topic, 
-        memory_type=memory_type, 
-        threshold=threshold, 
+        query=query,
+        limit=limit,
+        namespace=namespace,
+        topic=topic,
+        memory_type=memory_type,
+        threshold=threshold,
         raw=raw,
-        recency_boost=recency_boost
+        recency_boost=recency_boost,
     )
 
 
@@ -89,7 +99,9 @@ def status():
 @app.command()
 def add(
     text: str = typer.Argument("", help="Memory text to store. If empty, launches interactive mode."),
-    memory_type: str = typer.Option("semantic", "--type", help="Memory type: semantic (facts/decisions) or episodic (events)."),
+    memory_type: str = typer.Option(
+        "semantic", "--type", help="Memory type: semantic (facts/decisions) or episodic (events)."
+    ),
     topic: list[str] = typer.Option([], "--topic", "-t", help="Topic tags (can specify multiple)."),
     entity: list[str] = typer.Option([], "--entity", "-e", help="Entity tags (can specify multiple)."),
     interactive: bool = typer.Option(False, "--interactive", "-i", help="Interactive mode with prompts."),
@@ -138,11 +150,7 @@ def summarize(
 ):
     """Create and manage project-level summaries using Redis AMS summary views."""
     run_summarize(
-        view_type=view_type,
-        time_window=time_window,
-        manual=manual,
-        list_views=list_views,
-        delete_view=delete_view
+        view_type=view_type, time_window=time_window, manual=manual, list_views=list_views, delete_view=delete_view
     )
 
 
@@ -160,16 +168,18 @@ def install(
     skip_hook: bool = typer.Option(False, "--skip-hook", help="Skip post-commit hook installation."),
     skip_cursor: bool = typer.Option(False, "--skip-cursor", help="Skip Cursor MCP config."),
     skip_antigravity: bool = typer.Option(False, "--skip-antigravity", help="Skip Antigravity MCP config."),
+    skip_opencode: bool = typer.Option(False, "--skip-opencode", help="Skip OpenCode MCP config."),
     skip_rule: bool = typer.Option(False, "--skip-rule", help="Skip Cursor agent rule installation."),
     mcp_endpoint: str = typer.Option("", "--mcp-endpoint", help="Override MCP server endpoint."),
 ):
     """Set up Git hooks, MCP configs, and agent coordination rules."""
     run_install(
-        skip_hook=skip_hook, 
-        skip_cursor=skip_cursor, 
-        skip_antigravity=skip_antigravity, 
-        skip_rule=skip_rule, 
-        mcp_endpoint=mcp_endpoint
+        skip_hook=skip_hook,
+        skip_cursor=skip_cursor,
+        skip_antigravity=skip_antigravity,
+        skip_opencode=skip_opencode,
+        skip_rule=skip_rule,
+        mcp_endpoint=mcp_endpoint,
     )
 
 
