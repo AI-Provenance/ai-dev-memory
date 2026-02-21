@@ -5,7 +5,8 @@ from rich.table import Table
 
 from devmemory.core.config import DevMemoryConfig
 from devmemory.core.sync_state import SyncState
-from devmemory.core.git_ai_parser import get_repo_root, get_git_ai_version, is_git_ai_installed
+from devmemory.core.git_ai_parser import get_git_ai_version, is_git_ai_installed
+from devmemory.core.utils import get_repo_root
 from devmemory.core.ams_client import AMSClient
 from devmemory import __version__
 
@@ -47,13 +48,14 @@ def get_cursor_rules_status(repo_root: pathlib.Path) -> str:
         return "[yellow]partially installed[/yellow] (missing main rule)"
     return "[yellow]not installed[/yellow] (run: devmemory install)"
 
+
 def get_skills_status() -> str:
     claude_skills_dir = pathlib.Path.home() / ".claude" / "skills"
     antigravity_skills_dir = pathlib.Path.home() / ".gemini" / "antigravity" / "skills"
-    
+
     claude_ok = (claude_skills_dir / "devmemory-memory" / "SKILL.md").exists()
     anti_ok = (antigravity_skills_dir / "devmemory-memory" / "SKILL.md").exists()
-    
+
     if claude_ok and anti_ok:
         return "[green]installed[/green] (Claude, Antigravity)"
     elif claude_ok:
@@ -62,6 +64,7 @@ def get_skills_status() -> str:
         return "[yellow]partially installed[/yellow] (Antigravity only)"
     else:
         return "[yellow]not installed[/yellow] (run: devmemory install)"
+
 
 def run_status():
     config = DevMemoryConfig.load()

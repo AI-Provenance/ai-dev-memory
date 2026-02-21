@@ -5,7 +5,7 @@ import os
 import re
 import subprocess
 from dataclasses import dataclass, field
-from devmemory.core.utils import run_command, get_repo_root
+from devmemory.core.utils import run_command
 
 
 @dataclass
@@ -68,27 +68,18 @@ def _looks_like_filepath(line: str) -> bool:
         return False
     if "/" in stripped or "." in stripped:
         return True
-    if re.match(r'^[a-zA-Z0-9_]', stripped) and not stripped.startswith(" "):
+    if re.match(r"^[a-zA-Z0-9_]", stripped) and not stripped.startswith(" "):
         return True
     return False
-
-
-def get_repo_root() -> str | None:
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
-            capture_output=True, text=True, check=True,
-        )
-        return result.stdout.strip()
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return None
 
 
 def get_head_sha() -> str | None:
     try:
         result = subprocess.run(
             ["git", "rev-parse", "HEAD"],
-            capture_output=True, text=True, check=True,
+            capture_output=True,
+            text=True,
+            check=True,
         )
         return result.stdout.strip()
     except (subprocess.CalledProcessError, FileNotFoundError):
@@ -99,7 +90,9 @@ def get_commit_diff(sha: str) -> str:
     try:
         result = subprocess.run(
             ["git", "diff", f"{sha}~1..{sha}", "--stat"],
-            capture_output=True, text=True, check=True,
+            capture_output=True,
+            text=True,
+            check=True,
         )
         return result.stdout.strip()
     except subprocess.CalledProcessError:
@@ -123,7 +116,7 @@ def get_per_file_diffs(sha: str) -> dict[str, str]:
         if line.startswith("diff --git"):
             if current_file and current_lines:
                 file_diffs[current_file] = "\n".join(current_lines)
-            match = re.search(r' b/(.+)$', line)
+            match = re.search(r" b/(.+)$", line)
             current_file = match.group(1) if match else ""
             current_lines = []
         elif current_file:
@@ -158,9 +151,9 @@ def parse_ai_note(raw_note: str) -> list[FileAttribution]:
             parts = stripped.split(None, 1)
             if len(parts) == 2:
                 prompt_id, line_ranges = parts
-                if re.match(r'^[a-f0-9]+$', prompt_id):
+                if re.match(r"^[a-f0-9]+$", prompt_id):
                     current_file.prompt_lines[prompt_id] = line_ranges.split(",")
-            elif len(parts) == 1 and re.match(r'^[a-f0-9]+$', parts[0]):
+            elif len(parts) == 1 and re.match(r"^[a-f0-9]+$", parts[0]):
                 current_file.prompt_lines[parts[0]] = []
 
     return files
@@ -262,9 +255,7 @@ def _messages_from_note_prompt_record(record: dict) -> list[dict]:
             continue
         text = m.get("text", "") or m.get("content", "")
         if isinstance(text, list):
-            text = " ".join(
-                t.get("text", "") if isinstance(t, dict) else str(t) for t in text
-            )
+            text = " ".join(t.get("text", "") if isinstance(t, dict) else str(t) for t in text)
         out.append({"role": kind, "content": text})
     return out
 
@@ -291,7 +282,7 @@ def get_commits_since(since_sha: str | None, limit: int = 50, all_branches: bool
     cmd = ["git", "log", f"--format={fmt}", f"-{limit}"]
     if all_branches:
         cmd.append("--all")
-    
+
     if since_sha:
         cmd.append(f"{since_sha}..HEAD")
 
@@ -306,13 +297,15 @@ def get_commits_since(since_sha: str | None, limit: int = 50, all_branches: bool
         parts = line.split("|", 4)
         if len(parts) < 5:
             continue
-        commits.append({
-            "sha": parts[0],
-            "author_name": parts[1],
-            "author_email": parts[2],
-            "subject": parts[3],
-            "date": parts[4],
-        })
+        commits.append(
+            {
+                "sha": parts[0],
+                "author_name": parts[1],
+                "author_email": parts[2],
+                "subject": parts[3],
+                "date": parts[4],
+            }
+        )
     return commits
 
 
