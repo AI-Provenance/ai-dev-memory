@@ -4,6 +4,9 @@ import json
 from pathlib import Path
 from dataclasses import dataclass, field, asdict
 from devmemory.core.utils import get_repo_root, get_repo_id
+from devmemory.core.logging_config import get_logger
+
+log = get_logger(__name__)
 
 
 CONFIG_DIR = Path.home() / ".devmemory"
@@ -28,8 +31,9 @@ class DevMemoryConfig:
 
     @classmethod
     def load(cls) -> DevMemoryConfig:
+        log.debug("load: loading configuration")
         config = cls()
-        
+
         # 1. Load global
         if CONFIG_FILE.exists():
             try:
@@ -37,9 +41,10 @@ class DevMemoryConfig:
                 for k, v in raw.items():
                     if k in cls.__dataclass_fields__:
                         setattr(config, k, v)
-            except Exception:
-                pass
-                
+                log.debug(f"load: loaded global config from {CONFIG_FILE}")
+            except Exception as e:
+                log.warning(f"load: failed to parse global config - {e}")
+
         # 2. Load local
         repo_root = get_repo_root()
         if repo_root:
@@ -50,15 +55,17 @@ class DevMemoryConfig:
                     for k, v in raw.items():
                         if k in cls.__dataclass_fields__:
                             setattr(config, k, v)
-                except Exception:
-                    pass
-                    
+                    log.debug(f"load: loaded local config from {local_file}")
+                except Exception as e:
+                    log.warning(f"load: failed to parse local config - {e}")
+
         return config
 
     def save(self, local: bool = False) -> None:
         if local:
             repo_root = get_repo_root()
             if not repo_root:
+                log.error("save: not in a git repository, cannot save local config")
                 raise RuntimeError("Not in a git repository, cannot save local config.")
             target_dir = Path(repo_root) / ".devmemory"
             target_file = target_dir / "config.json"
@@ -68,10 +75,13 @@ class DevMemoryConfig:
 
         target_dir.mkdir(parents=True, exist_ok=True)
         target_file.write_text(json.dumps(asdict(self), indent=2) + "\n")
+        log.debug(f"save: saved config to {target_file}")
 
     def set_value(self, key: str, value: str | bool, local: bool = False) -> None:
         if key not in self.__dataclass_fields__:
+            log.error(f"set_value: unknown config key '{key}'")
             raise KeyError(f"Unknown config key: {key}. Valid keys: {list(self.__dataclass_fields__)}")
+        log.debug(f"set_value: {key}={value} (local={local})")
         setattr(self, key, value)
         self.save(local=local)
 

@@ -5,6 +5,9 @@ from dataclasses import dataclass
 from typing import Optional
 from contextlib import contextmanager
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from devmemory.core.logging_config import get_logger
+
+log = get_logger(__name__)
 
 
 def _is_retryable_http_error(exception: BaseException) -> bool:
@@ -80,10 +83,13 @@ class AMSClient:
 
     @retry_on_network_error
     def health_check(self) -> dict:
+        log.debug(f"health_check: {self.base_url}")
         client = self._get_client()
         resp = client.get("/v1/health")
         resp.raise_for_status()
-        return resp.json()
+        result = resp.json()
+        log.debug(f"health_check: success")
+        return result
 
     @retry_on_network_error
     def create_memories(
@@ -92,16 +98,27 @@ class AMSClient:
         deduplicate: bool = True,
     ) -> dict:
         if not memories:
+            log.debug("create_memories: empty list, skipping")
             return {"count": 0, "ids": []}
 
+        log.info(f"create_memories: sending {len(memories)} memories (deduplicate={deduplicate})")
         payload = {
             "memories": memories,
             "deduplicate": deduplicate,
         }
         client = self._get_client()
-        resp = client.post("/v1/long-term-memory/", json=payload)
-        resp.raise_for_status()
-        return resp.json()
+        try:
+            resp = client.post("/v1/long-term-memory/", json=payload)
+            resp.raise_for_status()
+            result = resp.json()
+            log.info(f"create_memories: created {result.get('count', 0)} memories")
+            return result
+        except httpx.HTTPStatusError as e:
+            log.error(f"create_memories: HTTP {e.response.status_code} - {e.response.text[:200]}")
+            raise
+        except httpx.ConnectError as e:
+            log.error(f"create_memories: connection failed to {self.base_url}")
+            raise
 
     @retry_on_network_error
     def search_memories(
@@ -113,6 +130,7 @@ class AMSClient:
         topics: list[str] | None = None,
         memory_type: str | None = None,
     ) -> list[MemoryResult]:
+        log.debug(f"search_memories: query='{text[:50]}...' limit={limit} namespace={namespace}")
         payload: dict = {
             "text": text,
             "limit": limit,
@@ -126,33 +144,42 @@ class AMSClient:
         if memory_type:
             payload["memory_type"] = {"eq": memory_type}
 
-        if self._shared_client:
-            client = self._shared_client
-            resp = client.post("/v1/long-term-memory/search", json=payload)
-            resp.raise_for_status()
-            data = resp.json()
-        else:
-            with self._client_context() as client:
+        try:
+            if self._shared_client:
+                client = self._shared_client
                 resp = client.post("/v1/long-term-memory/search", json=payload)
                 resp.raise_for_status()
                 data = resp.json()
+            else:
+                with self._client_context() as client:
+                    resp = client.post("/v1/long-term-memory/search", json=payload)
+                    resp.raise_for_status()
+                    data = resp.json()
 
-        results = []
-        for m in data.get("memories", []):
-            results.append(
-                MemoryResult(
-                    id=m.get("id", ""),
-                    text=m.get("text", ""),
-                    score=m.get("dist", m.get("score", 0.0)),
-                    topics=m.get("topics") or [],
-                    entities=m.get("entities") or [],
-                    memory_type=m.get("memory_type", ""),
-                    created_at=m.get("created_at") or m.get("metadata", {}).get("created_at", ""),
+            results = []
+            for m in data.get("memories", []):
+                results.append(
+                    MemoryResult(
+                        id=m.get("id", ""),
+                        text=m.get("text", ""),
+                        score=m.get("dist", m.get("score", 0.0)),
+                        topics=m.get("topics") or [],
+                        entities=m.get("entities") or [],
+                        memory_type=m.get("memory_type", ""),
+                        created_at=m.get("created_at") or m.get("metadata", {}).get("created_at", ""),
+                    )
                 )
-            )
-        return results
+            log.debug(f"search_memories: found {len(results)} results")
+            return results
+        except httpx.HTTPStatusError as e:
+            log.error(f"search_memories: HTTP {e.response.status_code}")
+            raise
+        except httpx.ConnectError:
+            log.error(f"search_memories: connection failed to {self.base_url}")
+            raise
 
     def get_memory_count(self, namespace: str | None = None) -> int:
+        log.debug(f"get_memory_count: namespace={namespace}")
         try:
             total = 0
             offset = 0
@@ -182,8 +209,10 @@ class AMSClient:
                         if data.get("next_offset") is None:
                             break
                         offset = data["next_offset"]
+            log.debug(f"get_memory_count: total={total}")
             return total
-        except Exception:
+        except Exception as e:
+            log.warning(f"get_memory_count: failed - {e}")
             return -1
 
     def list_sessions(self, namespace: str | None = None, limit: int = 50) -> list[str]:

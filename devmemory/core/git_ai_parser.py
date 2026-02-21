@@ -6,6 +6,9 @@ import re
 import subprocess
 from dataclasses import dataclass, field
 from devmemory.core.utils import run_command
+from devmemory.core.logging_config import get_logger
+
+log = get_logger(__name__)
 
 
 @dataclass
@@ -278,6 +281,7 @@ def _note_prompt_record_for_id(note_prompts: dict[str, dict], pid: str) -> dict 
 
 
 def get_commits_since(since_sha: str | None, limit: int = 50, all_branches: bool = False) -> list[dict]:
+    log.debug(f"get_commits_since: since_sha={since_sha} limit={limit} all_branches={all_branches}")
     fmt = "%H|%an|%ae|%s|%aI"
     cmd = ["git", "log", f"--format={fmt}", f"-{limit}"]
     if all_branches:
@@ -288,6 +292,7 @@ def get_commits_since(since_sha: str | None, limit: int = 50, all_branches: bool
 
     output = run_command(cmd)
     if not output:
+        log.debug("get_commits_since: no output from git log")
         return []
 
     commits = []
@@ -306,6 +311,7 @@ def get_commits_since(since_sha: str | None, limit: int = 50, all_branches: bool
                 "date": parts[4],
             }
         )
+    log.debug(f"get_commits_since: found {len(commits)} commits")
     return commits
 
 
@@ -380,8 +386,12 @@ def _build_commit_note(c: dict, enrich: bool = True) -> CommitNote:
 
 
 def get_ai_notes_since(since_sha: str | None, limit: int = 50, all_branches: bool = False) -> list[CommitNote]:
+    log.info(f"get_ai_notes_since: fetching commits since {since_sha or 'beginning'}")
     commits = get_commits_since(since_sha, limit, all_branches=all_branches)
-    return [_build_commit_note(c) for c in commits]
+    notes = [_build_commit_note(c) for c in commits]
+    ai_notes = [n for n in notes if n.has_ai_note]
+    log.info(f"get_ai_notes_since: {len(ai_notes)}/{len(notes)} commits have AI notes")
+    return notes
 
 
 def get_latest_commit_note() -> CommitNote | None:

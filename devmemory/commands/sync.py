@@ -16,8 +16,10 @@ from devmemory.core.memory_formatter import (
 )
 from devmemory.core.ams_client import AMSClient
 from devmemory.core.memory_formatter import generate_commit_summary
+from devmemory.core.logging_config import get_logger
 from datetime import datetime, timezone
 
+log = get_logger(__name__)
 console = Console()
 
 
@@ -280,14 +282,17 @@ def run_sync(
     local_enrichment: bool = True,
     all_branches: bool = False,
 ):
+    log.info(f"run_sync: starting latest={latest} all_commits={all_commits} ai_only={ai_only} limit={limit}")
     repo_root = get_repo_root()
     if not repo_root:
+        log.error("run_sync: not in a git repository")
         if not quiet:
             console.print("[red]Not inside a git repository.[/red]")
         raise typer.Exit(1)
 
     config = DevMemoryConfig.load()
     state = SyncState.load(repo_root)
+    log.debug(f"run_sync: repo_root={repo_root} last_synced_sha={state.last_synced_sha}")
 
     if latest:
         note = get_latest_commit_note()
@@ -301,6 +306,7 @@ def run_sync(
         notes = get_ai_notes_since(since_sha, limit=limit, all_branches=all_branches)
 
     if not notes:
+        log.info("run_sync: no new commits to sync")
         if not quiet:
             console.print("[green]Already up to date. No new commits to sync.[/green]")
         raise typer.Exit(0)
@@ -380,9 +386,11 @@ def run_sync(
                     client.create_memories(batch)
                     total_synced += len(batch)
 
+            log.info(f"run_sync: successfully synced {total_synced} memories from {len(notes_to_sync)} commits")
             if not quiet:
                 console.print(f"\n[green]✓ Successfully synced {total_synced} memories.[/green]")
         except Exception as e:
+            log.error(f"run_sync: sync failed - {e}")
             if not quiet:
                 console.print(f"\n[red]✗ Sync failed: {e}[/red]")
             raise typer.Exit(1)
@@ -394,9 +402,11 @@ def run_sync(
                     console.print(f"[dim]Generating {len(summary_memories)} commit summary(ies)...[/dim]")
                 client.create_memories(summary_memories)
                 total_synced += len(summary_memories)
+                log.debug(f"run_sync: generated {len(summary_memories)} commit summaries")
                 if not quiet:
                     console.print(f"[green]✓ Generated {len(summary_memories)} commit summary(ies).[/green]")
         except Exception as e:
+            log.warning(f"run_sync: summarization failed (non-blocking) - {e}")
             if not quiet:
                 console.print(f"[yellow]⚠ Summarization failed (non-blocking): {e}[/yellow]")
 
@@ -407,6 +417,7 @@ def run_sync(
     if notes_to_sync:
         newest_sha = notes_to_sync[0].sha
         state.mark_synced(newest_sha, count=total_synced)
+        log.info(f"run_sync: marked {newest_sha[:12]} as synced with {total_synced} memories")
 
         if quiet:
             if total_synced > 0:
