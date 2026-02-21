@@ -3,6 +3,9 @@ from __future__ import annotations
 import os
 import httpx
 from pathlib import Path
+from devmemory.core.logging_config import get_logger
+
+log = get_logger(__name__)
 
 
 def _find_env_file() -> Path | None:
@@ -106,12 +109,12 @@ def _call_openai(
                 {"role": "user", "content": user_msg},
             ],
         }
-        
+
         if model.startswith("gpt-5") or model.startswith("o3") or model.startswith("o4"):
             payload["max_completion_tokens"] = max_tokens
         else:
             payload["max_tokens"] = max_tokens
-        
+
         resp = client.post(
             "https://api.openai.com/v1/chat/completions",
             headers={
@@ -131,16 +134,18 @@ def _call_openai(
         finish_reason = choice.get("finish_reason", "unknown")
         message = choice.get("message", {})
         content = message.get("content")
-        
+
         if content is None:
             raise LLMError(f"OpenAI API returned null content (finish_reason: {finish_reason})")
-        
+
         if not isinstance(content, str):
             raise LLMError(f"OpenAI API returned non-string content: {type(content)} (finish_reason: {finish_reason})")
-        
+
         if not content.strip():
-            raise LLMError(f"OpenAI API returned empty/whitespace content (finish_reason: {finish_reason}, content length: {len(content)})")
-        
+            raise LLMError(
+                f"OpenAI API returned empty/whitespace content (finish_reason: {finish_reason}, content length: {len(content)})"
+            )
+
         return content
 
 
@@ -182,14 +187,18 @@ def _call_anthropic(
         if not isinstance(first, dict):
             raise LLMError(f"Anthropic API returned invalid content block: {type(first)} (stop_reason: {stop_reason})")
         if first.get("type") != "text":
-            raise LLMError(f"Anthropic API returned non-text content block: {first.get('type')} (stop_reason: {stop_reason})")
+            raise LLMError(
+                f"Anthropic API returned non-text content block: {first.get('type')} (stop_reason: {stop_reason})"
+            )
         text = first.get("text")
         if text is None:
             raise LLMError(f"Anthropic API returned null text in content block (stop_reason: {stop_reason})")
         if not isinstance(text, str):
             raise LLMError(f"Anthropic API returned non-string text: {type(text)} (stop_reason: {stop_reason})")
         if not text.strip():
-            raise LLMError(f"Anthropic API returned empty/whitespace text (stop_reason: {stop_reason}, text length: {len(text)})")
+            raise LLMError(
+                f"Anthropic API returned empty/whitespace text (stop_reason: {stop_reason}, text length: {len(text)})"
+            )
         return text
 
 
@@ -203,11 +212,18 @@ def call_llm(
     api_key, model, provider = get_llm_config()
 
     if not api_key:
+        log.error("call_llm: no API key configured")
         raise LLMError("no_api_key")
 
+    log.debug(f"call_llm: provider={provider} model={model} max_tokens={max_tokens}")
+
     if provider == "anthropic":
-        return _call_anthropic(api_key, model, system_prompt, user_msg, max_tokens, timeout)
-    return _call_openai(api_key, model, system_prompt, user_msg, max_tokens, timeout)
+        result = _call_anthropic(api_key, model, system_prompt, user_msg, max_tokens, timeout)
+    else:
+        result = _call_openai(api_key, model, system_prompt, user_msg, max_tokens, timeout)
+
+    log.debug(f"call_llm: response length={len(result)} chars")
+    return result
 
 
 def synthesize_answer(
@@ -215,6 +231,7 @@ def synthesize_answer(
     memories: list[dict],
     timeout: float = 60.0,
 ) -> str | None:
+    log.debug(f"synthesize_answer: query='{query[:50]}...' memories={len(memories)}")
     context_parts = []
     for i, mem in enumerate(memories, 1):
         topics_str = ", ".join(mem.get("topics", []))
@@ -227,4 +244,6 @@ def synthesize_answer(
     context = "\n\n".join(context_parts)
     user_msg = f"Question: {query}\n\nRetrieved memories ({len(memories)} results):\n\n{context}"
 
-    return call_llm(SYSTEM_PROMPT, user_msg, max_tokens=1000, timeout=timeout)
+    result = call_llm(SYSTEM_PROMPT, user_msg, max_tokens=1000, timeout=timeout)
+    log.debug(f"synthesize_answer: synthesized answer")
+    return result
