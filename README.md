@@ -289,6 +289,32 @@ AMS_AUTH_TOKEN=your_auth_token_here
 
 The auth token is **always read from environment variables** for security and is never stored in config files. Running `devmemory config set ams_auth_token <value>` will be rejected - you must use the `AMS_AUTH_TOKEN` environment variable.
 
+### Team Code Stats
+
+DevMemory tracks AI vs Human code contribution using Git AI's commit attribution data. When you sync commits, stats are automatically stored in AMS.
+
+**Usage:**
+
+```bash
+# Your individual stats (last 30 days)
+devmemory stats
+
+# Team-wide stats (all team members)
+devmemory stats --team
+
+# Last 90 days
+devmemory stats --days 90
+
+# All-time stats (no time filter)
+devmemory stats --all-time
+```
+
+**Note:** Stats are only available for commits that have AI notes (Git AI must be installed and tracking commits). Run `devmemory sync` after making commits to store their stats.
+
+**About Summary Views:**
+
+The `--create-views` flag attempts to create AMS Summary Views for automated aggregation, but due to current AMS limitations with filtering by session ID, the numeric stats shown above are more reliable. Summary Views may show "No memories found" in some configurations.
+
 ---
 
 ## 🧑‍💻 Contributing

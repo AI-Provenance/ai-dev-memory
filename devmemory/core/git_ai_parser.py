@@ -467,6 +467,40 @@ def install_git_ai_hooks() -> bool:
         return False
 
 
+def format_commit_stats_memory(
+    commit_sha: str,
+    commit_author_email: str,
+    commit_date: str,
+    commit_subject: str,
+    stats: CommitStats,
+    namespace: str,
+    user_id: str,
+) -> dict:
+    """Create a memory record for commit stats."""
+    import json
+
+    stats_data = {
+        "sha": commit_sha,
+        "human_additions": stats.human_additions,
+        "ai_additions": stats.ai_additions,
+        "ai_accepted": stats.ai_accepted,
+        "mixed_additions": stats.mixed_additions,
+        "total_ai_additions": stats.total_ai_additions,
+        "timestamp": commit_date,
+        "subject": commit_subject,
+    }
+    return {
+        "id": f"stats:{namespace}:{commit_sha}",
+        "text": json.dumps(stats_data),
+        "memory_type": "semantic",
+        "topics": ["stats", "commit-stats"],
+        "entities": [commit_author_email],
+        "namespace": namespace,
+        "user_id": user_id or commit_author_email,
+        "session_id": "stats",
+    }
+
+
 @dataclass
 class RepoStats:
     total_commits: int = 0

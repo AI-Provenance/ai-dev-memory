@@ -8,6 +8,7 @@ from devmemory.commands.learn import run_learn
 from devmemory.commands.prompts import run_prompts
 from devmemory.commands.search import run_search
 from devmemory.commands.status import run_status
+from devmemory.commands.stats import run_stats
 from devmemory.commands.sync import run_sync
 from devmemory.commands.why import run_why
 from devmemory.commands.summarize import run_summarize, run_generate_architecture_summary
@@ -94,6 +95,22 @@ def prompts(
 def status():
     """Show system status."""
     run_status()
+
+
+@app.command()
+def stats(
+    team: bool = typer.Option(False, "--team", "-t", help="Show team-wide stats instead of individual."),
+    days: Optional[int] = typer.Option(None, "--days", "-d", help="Filter to last N days (e.g., 30, 90)."),
+    all_time: bool = typer.Option(False, "--all-time", help="Show all-time stats (no time filter)."),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Minimal output."),
+    create_views: bool = typer.Option(False, "--create-views", help="Create AMS summary views for team stats."),
+    summarize: bool = typer.Option(False, "--summarize", "-s", help="Show LLM-generated summary from AMS views."),
+):
+    """Show code contribution stats (AI vs Human).
+
+    By default shows individual stats. Use --team for team-wide stats.
+    """
+    run_stats(team=team, days=days, all_time=all_time, quiet=quiet, create_views=create_views, summarize=summarize)
 
 
 @app.command()

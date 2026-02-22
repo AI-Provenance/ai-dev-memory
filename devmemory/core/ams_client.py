@@ -38,6 +38,9 @@ class MemoryResult:
     entities: list[str]
     memory_type: str
     created_at: str
+    user_id: str = ""
+    namespace: str = ""
+    session_id: str = ""
 
 
 @dataclass
@@ -151,6 +154,8 @@ class AMSClient:
         if memory_type:
             payload["memory_type"] = {"eq": memory_type}
 
+        log.debug(f"search_memories: payload={payload}")
+
         try:
             if self._shared_client:
                 client = self._shared_client
@@ -174,6 +179,9 @@ class AMSClient:
                         entities=m.get("entities") or [],
                         memory_type=m.get("memory_type", ""),
                         created_at=m.get("created_at") or m.get("metadata", {}).get("created_at", ""),
+                        user_id=m.get("user_id", ""),
+                        namespace=m.get("namespace", ""),
+                        session_id=m.get("session_id", ""),
                     )
                 )
             log.debug(f"search_memories: found {len(results)} results")
@@ -284,5 +292,41 @@ class AMSClient:
         else:
             with self._client_context() as client:
                 resp = client.delete(f"/v1/summary-views/{view_id}")
+                resp.raise_for_status()
+                return resp.json()
+
+    def get_summary_view_partitions(self, view_id: str, user_id: str = None) -> list[dict]:
+        """Get partition results from a summary view."""
+        params = {}
+        if user_id:
+            params["user_id"] = user_id
+
+        if self._shared_client:
+            client = self._shared_client
+            resp = client.get(f"/v1/summary-views/{view_id}/partitions", params=params)
+            resp.raise_for_status()
+            data = resp.json()
+            if isinstance(data, list):
+                return data
+            return data.get("partitions", [])
+        else:
+            with self._client_context() as client:
+                resp = client.get(f"/v1/summary-views/{view_id}/partitions", params=params)
+                resp.raise_for_status()
+                data = resp.json()
+                if isinstance(data, list):
+                    return data
+                return data.get("partitions", [])
+
+    def run_summary_view_partition(self, view_id: str, group: dict) -> dict:
+        """Run a specific partition of a summary view."""
+        if self._shared_client:
+            client = self._shared_client
+            resp = client.post(f"/v1/summary-views/{view_id}/partitions/run", json={"group": group})
+            resp.raise_for_status()
+            return resp.json()
+        else:
+            with self._client_context() as client:
+                resp = client.post(f"/v1/summary-views/{view_id}/partitions/run", json={"group": group})
                 resp.raise_for_status()
                 return resp.json()
