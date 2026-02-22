@@ -274,6 +274,21 @@ Environment variables (in `.env`):
 | `GENERATION_MODEL` | `gpt-5-mini` | Model for LLM answer synthesis |
 | `EMBEDDING_MODEL` | `text-embedding-3-small` | Model for vector embeddings |
 
+### Remote AMS Configuration
+
+To use a remote AMS server (e.g., deployed on a cloud server), set these environment variables:
+
+```bash
+# Point to your remote AMS endpoints
+AMS_ENDPOINT=https://amsapi.yourdomain.com
+MCP_ENDPOINT=https://amsmcp.yourdomain.com
+
+# Auth token (required for protected AMS servers)
+AMS_AUTH_TOKEN=your_auth_token_here
+```
+
+The auth token is **always read from environment variables** for security and is never stored in config files.
+
 ---
 
 ## 🧑‍💻 Contributing

@@ -25,7 +25,7 @@ def _parse_frontmatter(content: str) -> tuple[dict, str]:
         return {}, content
 
     frontmatter_raw = content[3:end].strip()
-    body = content[end + 3:].strip()
+    body = content[end + 3 :].strip()
 
     meta: dict = {}
     for line in frontmatter_raw.splitlines():
@@ -112,14 +112,16 @@ def _parse_knowledge_file(filepath: Path, base_dir: Path) -> list[dict]:
         if not section_topics:
             section_topics = [filepath.stem.replace("-", " ").replace("_", " ")]
 
-        memories.append({
-            "id": _memory_id(rel_path, heading or filepath.stem),
-            "text": memory_text,
-            "memory_type": default_type,
-            "topics": section_topics,
-            "entities": list(default_entities),
-            "session_id": f"knowledge:{rel_path}",
-        })
+        memories.append(
+            {
+                "id": _memory_id(rel_path, heading or filepath.stem),
+                "text": memory_text,
+                "memory_type": default_type,
+                "topics": section_topics,
+                "entities": list(default_entities),
+                "session_id": f"knowledge:{rel_path}",
+            }
+        )
 
     return memories
 
@@ -199,7 +201,7 @@ def run_learn(
         console.print("[yellow]No memories to sync.[/yellow]")
         return
 
-    client = AMSClient(base_url=config.ams_endpoint)
+    client = AMSClient(base_url=config.ams_endpoint, auth_token=config.ams_auth_token)
 
     try:
         client.health_check()

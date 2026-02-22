@@ -22,7 +22,9 @@ def _git_cmd(args: list[str]) -> str:
     try:
         result = subprocess.run(
             ["git"] + args,
-            capture_output=True, text=True, check=True,
+            capture_output=True,
+            text=True,
+            check=True,
         )
         return result.stdout.strip()
     except (subprocess.CalledProcessError, FileNotFoundError):
@@ -173,12 +175,10 @@ def _render_context(
             parts.append(f"- {s}")
         parts.append("")
 
-    decisions = [r for r in results if any(
-        t in r.topics for t in ("architecture", "decisions", "conventions", "dependencies")
-    )]
-    gotchas = [r for r in results if any(
-        t in r.topics for t in ("gotchas", "troubleshooting", "bugfix", "api-quirks")
-    )]
+    decisions = [
+        r for r in results if any(t in r.topics for t in ("architecture", "decisions", "conventions", "dependencies"))
+    ]
+    gotchas = [r for r in results if any(t in r.topics for t in ("gotchas", "troubleshooting", "bugfix", "api-quirks"))]
     other = [r for r in results if r not in decisions and r not in gotchas]
 
     total_chars = sum(len(p) for p in parts)
@@ -225,18 +225,22 @@ def _render_context(
     if coordination_session:
         parts.append("## Active Coordination\n")
         parts.append(f"- Active coordination session found: `{coordination_session}`")
-        parts.append("- Use `get_working_memory(session_id=\"project-coordination\")` via MCP to read details")
+        parts.append('- Use `get_working_memory(session_id="project-coordination")` via MCP to read details')
         parts.append("")
 
     if not results:
         parts.append("## No Relevant Memories Found\n")
         parts.append("No memories matched the current work area above the relevance threshold.")
-        parts.append("Use `devmemory search \"<query>\"` for broader searches.")
+        parts.append('Use `devmemory search "<query>"` for broader searches.')
         parts.append("")
 
     parts.append("---")
-    parts.append(f"_Searched {len(results)} relevant memories across {len(signals.get('changed_files', []))} changed files._")
-    parts.append("_For deeper context, use `devmemory search \"<specific question>\"` or `search_long_term_memory()` via MCP._")
+    parts.append(
+        f"_Searched {len(results)} relevant memories across {len(signals.get('changed_files', []))} changed files._"
+    )
+    parts.append(
+        '_For deeper context, use `devmemory search "<specific question>"` or `search_long_term_memory()` via MCP._'
+    )
 
     return "\n".join(parts) + "\n"
 
@@ -246,7 +250,7 @@ def run_context(
     quiet: bool = False,
 ):
     config = DevMemoryConfig.load()
-    client = AMSClient(base_url=config.ams_endpoint)
+    client = AMSClient(base_url=config.ams_endpoint, auth_token=config.ams_auth_token)
 
     try:
         client.health_check()

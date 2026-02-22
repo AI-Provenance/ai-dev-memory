@@ -164,31 +164,39 @@ def _display_answer_mode(
         return
 
     if answer and answer.strip():
-        console.print(Panel(
-            Markdown(answer),
-            title="[bold green]Answer[/bold green]",
-            border_style="green",
-            padding=(1, 2),
-        ))
+        console.print(
+            Panel(
+                Markdown(answer),
+                title="[bold green]Answer[/bold green]",
+                border_style="green",
+                padding=(1, 2),
+            )
+        )
     else:
-        prompt_sources = [r for r in results if "prompt" in r.topics or "Prompt to" in r.text or "Stored AI prompt" in r.text]
+        prompt_sources = [
+            r for r in results if "prompt" in r.topics or "Prompt to" in r.text or "Stored AI prompt" in r.text
+        ]
         if prompt_sources and "prompt" in query.lower():
             excerpt = prompt_sources[0].text
             if len(excerpt) > 800:
                 excerpt = excerpt[:797] + "..."
-            console.print(Panel(
-                excerpt,
-                title="[bold green]Answer[/bold green] (excerpt from top prompt memory)",
-                border_style="green",
-                padding=(1, 2),
-            ))
+            console.print(
+                Panel(
+                    excerpt,
+                    title="[bold green]Answer[/bold green] (excerpt from top prompt memory)",
+                    border_style="green",
+                    padding=(1, 2),
+                )
+            )
         else:
-            console.print(Panel(
-                "No synthesized answer. See sources below for retrieved memories.",
-                title="[bold green]Answer[/bold green]",
-                border_style="dim",
-                padding=(1, 2),
-            ))
+            console.print(
+                Panel(
+                    "No synthesized answer. See sources below for retrieved memories.",
+                    title="[bold green]Answer[/bold green]",
+                    border_style="dim",
+                    padding=(1, 2),
+                )
+            )
 
     _display_sources(results, total_fetched, threshold)
 
@@ -205,12 +213,14 @@ def _display_raw_results(query: str, results: list[MemoryResult]):
             header.append(f"({', '.join(r.topics[:5])}) ", style="dim cyan")
         header.append(f"[{r.memory_type}]", style="dim")
 
-        console.print(Panel(
-            r.text,
-            title=header,
-            border_style="dim",
-            padding=(0, 1),
-        ))
+        console.print(
+            Panel(
+                r.text,
+                title=header,
+                border_style="dim",
+                padding=(0, 1),
+            )
+        )
 
 
 def run_search(
@@ -225,7 +235,7 @@ def run_search(
     all_repos: bool = False,
 ):
     config = DevMemoryConfig.load()
-    client = AMSClient(base_url=config.ams_endpoint)
+    client = AMSClient(base_url=config.ams_endpoint, auth_token=config.ams_auth_token)
 
     try:
         client.health_check()
@@ -259,10 +269,7 @@ def run_search(
     if topics:
         results = [r for r in results if r.topics and any(t in r.topics for t in topics)]
     if topics == ["prompt"]:
-        results = [
-            r for r in results
-            if "Stored AI prompt" in r.text or "Prompt to" in r.text
-        ]
+        results = [r for r in results if "Stored AI prompt" in r.text or "Prompt to" in r.text]
 
     if (recency_boost > 0 or _query_wants_recency(query)) and results:
         # If recency_boost is high (e.g. > 0.8), we might just sort by recency
@@ -286,13 +293,8 @@ def run_search(
     relevant = [r for r in results if r.score < threshold]
 
     if not relevant and results:
-        console.print(
-            f"[yellow]No memories passed relevance threshold ({threshold}).[/yellow]"
-        )
-        console.print(
-            f"[dim]Best match score: {results[0].score:.3f} "
-            f"(lower is better, threshold: {threshold})[/dim]"
-        )
+        console.print(f"[yellow]No memories passed relevance threshold ({threshold}).[/yellow]")
+        console.print(f"[dim]Best match score: {results[0].score:.3f} (lower is better, threshold: {threshold})[/dim]")
         console.print("[dim]Trying with top results anyway...[/dim]\n")
         relevant = results[:limit]
 

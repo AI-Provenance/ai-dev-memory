@@ -175,46 +175,48 @@ def _synthesize_why(
     system_prompt = WHY_SYSTEM_PROMPT_VERBOSE if verbose else WHY_SYSTEM_PROMPT
     system_prompt_tokens = _estimate_tokens(system_prompt, model=model)
     base_msg_tokens = _estimate_tokens(f"Explain why `{filepath}` exists and how it evolved.\n\n", model=model)
-    
+
     available_tokens = MAX_INPUT_TOKENS - system_prompt_tokens - base_msg_tokens - MAX_OUTPUT_TOKENS
-    
+
     git_context_truncated = _truncate_text(git_context, min(len(git_context), available_tokens // 2 * 4))
     git_tokens = _estimate_tokens(git_context_truncated, model=model)
     available_tokens -= git_tokens
-    
+
     context_parts = []
     total_memory_chars = 0
     max_memory_chars = available_tokens * 4
-    
+
     for i, mem in enumerate(memories, 1):
         topics_str = ", ".join(mem.get("topics", []))
         header = f"--- Memory {i} (type: {mem['type']}, score: {mem['score']:.3f}"
         if topics_str:
             header += f", topics: {topics_str}"
         header += ") ---"
-        
+
         mem_text = mem.get("text", "")
         header_len = len(header) + 2
-        
+
         remaining_chars = max_memory_chars - total_memory_chars - header_len
         if remaining_chars <= 100:
             break
-            
+
         truncated_text = _truncate_text(mem_text, remaining_chars)
         context_parts.append(f"{header}\n{truncated_text}")
         total_memory_chars += len(header) + len(truncated_text) + 2
 
     memory_context = "\n\n".join(context_parts)
-    
+
     truncated_count = len(memories) - len(context_parts)
     if truncated_count > 0:
         memory_context += f"\n\n[Note: {truncated_count} additional memories were truncated due to input length limits]"
         if verbose or debug_mode:
             console.print(f"[dim]Warning: Truncated {truncated_count} memories to fit within context window[/dim]")
-    
+
     if len(git_context_truncated) < len(git_context):
         if verbose or debug_mode:
-            console.print(f"[dim]Warning: Git history truncated ({len(git_context_truncated)}/{len(git_context)} chars)[/dim]")
+            console.print(
+                f"[dim]Warning: Git history truncated ({len(git_context_truncated)}/{len(git_context)} chars)[/dim]"
+            )
 
     target = f"`{filepath}`"
     if function:
@@ -258,7 +260,7 @@ def run_why(
     verbose: bool = False,
 ):
     config = DevMemoryConfig.load()
-    client = AMSClient(base_url=config.ams_endpoint)
+    client = AMSClient(base_url=config.ams_endpoint, auth_token=config.ams_auth_token)
 
     try:
         client.health_check()
@@ -270,7 +272,8 @@ def run_why(
     try:
         subprocess.run(
             ["git", "cat-file", "-e", f"HEAD:{filepath}"],
-            capture_output=True, check=True,
+            capture_output=True,
+            check=True,
         )
     except (subprocess.CalledProcessError, FileNotFoundError):
         console.print(f"[red]File not found in repo: {filepath}[/red]")
@@ -379,13 +382,15 @@ def run_why(
         api_key, model, provider = get_llm_config()
         if not api_key:
             raise LLMError("no_api_key")
-        
+
         debug_mode = os.environ.get("DEVMEMORY_DEBUG", "").lower() in ("1", "true", "yes")
         if verbose or debug_mode:
             console.print(f"[dim]Using {provider} model: {model}[/dim]\n")
         if debug_mode:
-            console.print(f"[dim]Debug: Found {len(memories_for_llm)} memories, git_context length: {len(git_context)}[/dim]\n")
-        
+            console.print(
+                f"[dim]Debug: Found {len(memories_for_llm)} memories, git_context length: {len(git_context)}[/dim]\n"
+            )
+
         answer = _synthesize_why(
             filepath,
             function,
@@ -395,14 +400,16 @@ def run_why(
             debug_mode=debug_mode,
             model=model,
         )
-        
+
         if debug_mode:
             console.print(f"[dim]Debug: LLM returned answer of length: {len(answer) if answer else 0}[/dim]\n")
     except Exception as e:
         error_str = str(e)
         if "no_api_key" in error_str:
             console.print("[yellow]No API key found for answer synthesis.[/yellow]")
-            console.print("[dim]Set OPENAI_API_KEY or ANTHROPIC_API_KEY in .env or environment. Falling back to raw output...[/dim]\n")
+            console.print(
+                "[dim]Set OPENAI_API_KEY or ANTHROPIC_API_KEY in .env or environment. Falling back to raw output...[/dim]\n"
+            )
         else:
             console.print(f"[yellow]Synthesis failed: {error_str}[/yellow]")
             console.print("[dim]Falling back to raw output...[/dim]\n")
@@ -415,12 +422,14 @@ def run_why(
             title += f" → {function}"
         title += "[/bold green]"
 
-        console.print(Panel(
-            Markdown(answer),
-            title=title,
-            border_style="green",
-            padding=(1, 2),
-        ))
+        console.print(
+            Panel(
+                Markdown(answer),
+                title=title,
+                border_style="green",
+                padding=(1, 2),
+            )
+        )
     else:
         console.print("[yellow]Model returned no explanation.[/yellow]")
         console.print("[dim]Falling back to raw memories and git history...[/dim]\n")

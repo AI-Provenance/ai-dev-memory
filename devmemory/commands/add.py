@@ -24,7 +24,7 @@ def run_add(
     interactive: bool = False,
 ):
     config = DevMemoryConfig.load()
-    client = AMSClient(base_url=config.ams_endpoint)
+    client = AMSClient(base_url=config.ams_endpoint, auth_token=config.ams_auth_token)
 
     try:
         client.health_check()
@@ -61,12 +61,14 @@ def run_add(
         console.print(f"[red]Failed to store memory: {e}[/red]")
         raise typer.Exit(1)
 
-    console.print(Panel(
-        text,
-        title=f"[bold green]Stored[/bold green] [{memory_type}]",
-        border_style="green",
-        padding=(0, 1),
-    ))
+    console.print(
+        Panel(
+            text,
+            title=f"[bold green]Stored[/bold green] [{memory_type}]",
+            border_style="green",
+            padding=(0, 1),
+        )
+    )
     if topics:
         console.print(f"  [dim]Topics: {', '.join(topics)}[/dim]")
     if entities:
@@ -79,7 +81,7 @@ def _interactive_prompt(
     default_entities: list[str] | None = None,
 ) -> str | None:
     config = DevMemoryConfig.load()
-    client = AMSClient(base_url=config.ams_endpoint)
+    client = AMSClient(base_url=config.ams_endpoint, auth_token=config.ams_auth_token)
 
     console.print("[bold]Add a memory[/bold]\n")
     console.print("[dim]Types of knowledge to store:[/dim]")
@@ -134,12 +136,14 @@ def _interactive_prompt(
         memory["user_id"] = config.user_id
 
     console.print()
-    console.print(Panel(
-        text,
-        title=f"[bold]Preview[/bold] [{type_input}]",
-        border_style="dim",
-        padding=(0, 1),
-    ))
+    console.print(
+        Panel(
+            text,
+            title=f"[bold]Preview[/bold] [{type_input}]",
+            border_style="dim",
+            padding=(0, 1),
+        )
+    )
     if topics:
         console.print(f"  [dim]Topics: {', '.join(topics)}[/dim]")
     if entities:

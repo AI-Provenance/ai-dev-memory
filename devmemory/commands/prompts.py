@@ -29,7 +29,7 @@ def run_prompts(
     else:
         ns = namespace or config.get_active_namespace()
     base_url = config.ams_endpoint or "http://localhost:8000"
-    client = AMSClient(base_url=base_url)
+    client = AMSClient(base_url=base_url, auth_token=config.ams_auth_token)
 
     try:
         client.health_check()
@@ -52,13 +52,19 @@ def run_prompts(
         )
     real_prompt_prefix = "Stored AI prompt for this repository."
     real_prompts = [r for r in results if (r.text or "").strip().startswith(real_prompt_prefix)]
-    other_prompt_mentions = [r for r in results if r not in real_prompts and ("Stored AI prompt" in (r.text or "") or "Prompt to" in (r.text or ""))]
+    other_prompt_mentions = [
+        r
+        for r in results
+        if r not in real_prompts and ("Stored AI prompt" in (r.text or "") or "Prompt to" in (r.text or ""))
+    ]
     results = _sort_by_created(real_prompts)[:limit]
 
     if not results:
         console.print("[yellow]No stored user/assistant prompt memories in AMS.[/yellow]")
         if other_prompt_mentions:
-            console.print(f"[dim]Found {len(other_prompt_mentions)} other memory(ies) that mention 'prompt' (code/commits), but none are the actual prompts from git-ai.[/dim]")
+            console.print(
+                f"[dim]Found {len(other_prompt_mentions)} other memory(ies) that mention 'prompt' (code/commits), but none are the actual prompts from git-ai.[/dim]"
+            )
         console.print("[dim]Ensure: git-ai config set prompt_storage notes, then devmemory sync --all[/dim]")
         raise typer.Exit(0)
 
