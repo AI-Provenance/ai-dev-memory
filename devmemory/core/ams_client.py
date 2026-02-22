@@ -38,6 +38,8 @@ class MemoryResult:
     entities: list[str]
     memory_type: str
     created_at: str
+    user_id: str = ""
+    namespace: str = ""
 
 
 @dataclass
@@ -151,6 +153,8 @@ class AMSClient:
         if memory_type:
             payload["memory_type"] = {"eq": memory_type}
 
+        log.debug(f"search_memories: payload={payload}")
+
         try:
             if self._shared_client:
                 client = self._shared_client
@@ -174,6 +178,8 @@ class AMSClient:
                         entities=m.get("entities") or [],
                         memory_type=m.get("memory_type", ""),
                         created_at=m.get("created_at") or m.get("metadata", {}).get("created_at", ""),
+                        user_id=m.get("user_id", ""),
+                        namespace=m.get("namespace", ""),
                     )
                 )
             log.debug(f"search_memories: found {len(results)} results")

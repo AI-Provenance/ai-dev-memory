@@ -7,6 +7,8 @@ from devmemory.core.sync_state import SyncState
 from devmemory.core.git_ai_parser import (
     get_ai_notes_since,
     get_latest_commit_note,
+    get_commit_stats,
+    format_commit_stats_memory,
 )
 from devmemory.core.utils import get_repo_root
 from devmemory.core.memory_formatter import (
@@ -343,6 +345,7 @@ def run_sync(
     all_memories = []
     synced_shas = []
     summary_memories = []
+    stats_memories = []
 
     ns = config.get_active_namespace()
     for n in notes_to_sync:
@@ -356,6 +359,20 @@ def run_sync(
         if memories:
             all_memories.extend(memories)
             synced_shas.append(n.sha)
+
+        # Extract and store commit stats
+        commit_stats = get_commit_stats(n.sha)
+        if commit_stats and (commit_stats.ai_additions > 0 or commit_stats.human_additions > 0):
+            stats_mem = format_commit_stats_memory(
+                commit_sha=n.sha,
+                commit_author_email=n.author_email,
+                commit_date=n.date,
+                commit_subject=n.subject,
+                stats=commit_stats,
+                namespace=ns,
+                user_id=config.user_id,
+            )
+            stats_memories.append(stats_mem)
 
         if config.auto_summarize and n.has_ai_note:
             try:
@@ -409,6 +426,19 @@ def run_sync(
             log.warning(f"run_sync: summarization failed (non-blocking) - {e}")
             if not quiet:
                 console.print(f"[yellow]⚠ Summarization failed (non-blocking): {e}[/yellow]")
+
+    # Store commit stats for team analytics
+    if stats_memories:
+        try:
+            with client:
+                if not quiet:
+                    console.print(f"[dim]Storing commit stats for {len(stats_memories)} commit(s)...[/dim]")
+                client.create_memories(stats_memories)
+                log.debug(f"run_sync: stored {len(stats_memories)} commit stats")
+        except Exception as e:
+            log.warning(f"run_sync: stats storage failed (non-blocking) - {e}")
+            if not quiet:
+                console.print(f"[yellow]⚠ Stats storage failed (non-blocking): {e}[/yellow]")
 
     # Auto-summarization for project and architecture levels
     if config.auto_summarize and len(notes_to_sync) >= 3:  # Only trigger for significant batches
