@@ -14,7 +14,7 @@ class AgentMemoryTools:
     def __init__(self, namespace: Optional[str] = None):
         """Initialize memory tools for a specific namespace/project"""
         config = DevMemoryConfig.load()
-        self.client = AMSClient(base_url=config.ams_endpoint, auth_token=config.ams_auth_token)
+        self.client = AMSClient(base_url=config.ams_endpoint, auth_token=config.get_auth_token())
         self.namespace = namespace or config.get_active_namespace()
 
     def search_project_memory(

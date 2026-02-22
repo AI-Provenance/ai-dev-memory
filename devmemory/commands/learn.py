@@ -201,7 +201,7 @@ def run_learn(
         console.print("[yellow]No memories to sync.[/yellow]")
         return
 
-    client = AMSClient(base_url=config.ams_endpoint, auth_token=config.ams_auth_token)
+    client = AMSClient(base_url=config.ams_endpoint, auth_token=config.get_auth_token())
 
     try:
         client.health_check()

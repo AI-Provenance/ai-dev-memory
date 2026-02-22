@@ -29,7 +29,7 @@ def run_prompts(
     else:
         ns = namespace or config.get_active_namespace()
     base_url = config.ams_endpoint or "http://localhost:8000"
-    client = AMSClient(base_url=base_url, auth_token=config.ams_auth_token)
+    client = AMSClient(base_url=base_url, auth_token=config.get_auth_token())
 
     try:
         client.health_check()

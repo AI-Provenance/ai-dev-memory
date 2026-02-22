@@ -250,7 +250,7 @@ def run_context(
     quiet: bool = False,
 ):
     config = DevMemoryConfig.load()
-    client = AMSClient(base_url=config.ams_endpoint, auth_token=config.ams_auth_token)
+    client = AMSClient(base_url=config.ams_endpoint, auth_token=config.get_auth_token())
 
     try:
         client.health_check()
