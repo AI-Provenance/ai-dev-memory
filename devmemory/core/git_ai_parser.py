@@ -497,17 +497,7 @@ def format_commit_stats_memory(
         "entities": [commit_author_email],
         "namespace": namespace,
         "user_id": user_id or commit_author_email,
-        "session_id": f"git-{commit_sha[:12]}",
-    }
-    return {
-        "id": f"stats:{namespace}:{commit_sha}",
-        "text": json.dumps(stats_data),
-        "memory_type": "commit-stats",
-        "topics": ["stats", "commit-stats"],
-        "entities": [commit_author_email],
-        "namespace": namespace,
-        "user_id": user_id or commit_author_email,
-        "session_id": f"git-{commit_sha[:12]}",
+        "session_id": "stats",
     }
 
 

@@ -104,12 +104,13 @@ def stats(
     all_time: bool = typer.Option(False, "--all-time", help="Show all-time stats (no time filter)."),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Minimal output."),
     create_views: bool = typer.Option(False, "--create-views", help="Create AMS summary views for team stats."),
+    summarize: bool = typer.Option(False, "--summarize", "-s", help="Show LLM-generated summary from AMS views."),
 ):
     """Show code contribution stats (AI vs Human).
 
     By default shows individual stats. Use --team for team-wide stats.
     """
-    run_stats(team=team, days=days, all_time=all_time, quiet=quiet, create_views=create_views)
+    run_stats(team=team, days=days, all_time=all_time, quiet=quiet, create_views=create_views, summarize=summarize)
 
 
 @app.command()
