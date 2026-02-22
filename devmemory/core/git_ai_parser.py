@@ -465,3 +465,63 @@ def install_git_ai_hooks() -> bool:
         return result.returncode == 0
     except (subprocess.CalledProcessError, FileNotFoundError):
         return False
+
+
+@dataclass
+class RepoStats:
+    total_commits: int = 0
+    ai_commits: int = 0
+    human_additions: int = 0
+    ai_additions: int = 0
+    ai_accepted: int = 0
+    total_lines_added: int = 0
+
+    @property
+    def ai_percentage(self) -> float:
+        if self.total_lines_added == 0:
+            return 0.0
+        return (self.ai_additions / self.total_lines_added) * 100
+
+    @property
+    def human_percentage(self) -> float:
+        return 100.0 - self.ai_percentage
+
+
+def get_repo_stats(all_branches: bool = False) -> RepoStats:
+    """Get overall repository AI vs Human stats from all commits with AI notes."""
+    log.debug(f"get_repo_stats: all_branches={all_branches}")
+
+    # Get all commits (no limit)
+    fmt = "%H|%an|%ae|%s|%aI"
+    cmd = ["git", "log", f"--format={fmt}"]
+    if all_branches:
+        cmd.append("--all")
+
+    output = run_command(cmd)
+    if not output:
+        log.debug("get_repo_stats: no commits found")
+        return RepoStats()
+
+    stats = RepoStats()
+
+    for line in output.strip().splitlines():
+        if not line.strip():
+            continue
+        parts = line.split("|", 4)
+        if len(parts) < 5:
+            continue
+
+        sha = parts[0]
+        stats.total_commits += 1
+
+        # Check if this commit has AI notes
+        commit_stats = get_commit_stats(sha)
+        if commit_stats:
+            stats.ai_commits += 1
+            stats.human_additions += commit_stats.human_additions
+            stats.ai_additions += commit_stats.ai_additions
+            stats.ai_accepted += commit_stats.ai_accepted
+            stats.total_lines_added += commit_stats.human_additions + commit_stats.ai_additions
+
+    log.debug(f"get_repo_stats: total={stats.total_commits}, ai_commits={stats.ai_commits}")
+    return stats

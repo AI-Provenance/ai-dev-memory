@@ -5,7 +5,7 @@ from rich.table import Table
 
 from devmemory.core.config import DevMemoryConfig
 from devmemory.core.sync_state import SyncState
-from devmemory.core.git_ai_parser import get_git_ai_version, is_git_ai_installed
+from devmemory.core.git_ai_parser import get_git_ai_version, is_git_ai_installed, get_repo_stats, RepoStats
 from devmemory.core.utils import get_repo_root
 from devmemory.core.ams_client import AMSClient
 from devmemory import __version__
@@ -75,11 +75,25 @@ def run_status():
 
     table.add_row("DevMemory version", __version__)
 
+    repo_root = get_repo_root()
+
     git_ai_ok = is_git_ai_installed()
     git_ai_ver = get_git_ai_version() if git_ai_ok else "not installed"
     table.add_row("Git AI", f"[green]{git_ai_ver}[/green]" if git_ai_ok else "[red]not installed[/red]")
 
-    repo_root = get_repo_root()
+    # Show repo AI vs Human stats if Git AI is installed
+    if git_ai_ok and repo_root:
+        repo_stats = get_repo_stats(all_branches=False)
+        if repo_stats.total_commits > 0:
+            ai_pct = repo_stats.ai_percentage
+            human_pct = repo_stats.human_percentage
+            if repo_stats.ai_commits > 0:
+                stats_str = f"[green]{human_pct:.0f}%[/green] Human, [cyan]{ai_pct:.0f}%[/cyan] AI ({repo_stats.ai_commits} AI commits)"
+            else:
+                stats_str = (
+                    f"[green]{human_pct:.0f}%[/green] Human, [cyan]{ai_pct:.0f}%[/cyan] AI (no AI-assisted commits)"
+                )
+            table.add_row("Code stats", stats_str)
     table.add_row("Git repo", repo_root or "[red]not in a git repo[/red]")
 
     client = AMSClient(base_url=config.ams_endpoint, auth_token=config.get_auth_token())
