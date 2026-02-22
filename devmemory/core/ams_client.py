@@ -54,26 +54,33 @@ class SummaryView:
 
 
 class AMSClient:
-    def __init__(self, base_url: str = "http://localhost:8000", timeout: float = 30.0):
+    def __init__(self, base_url: str = "http://localhost:8000", timeout: float = 30.0, auth_token: str = ""):
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
+        self.auth_token = auth_token
         self._shared_client: httpx.Client | None = None
+
+    def _get_headers(self) -> dict:
+        headers = {}
+        if self.auth_token:
+            headers["Authorization"] = f"Bearer {self.auth_token}"
+        return headers
 
     def _get_client(self) -> httpx.Client:
         if self._shared_client:
             return self._shared_client
-        return httpx.Client(base_url=self.base_url, timeout=self.timeout)
+        return httpx.Client(base_url=self.base_url, timeout=self.timeout, headers=self._get_headers())
 
     @contextmanager
     def _client_context(self):
-        client = httpx.Client(base_url=self.base_url, timeout=self.timeout)
+        client = httpx.Client(base_url=self.base_url, timeout=self.timeout, headers=self._get_headers())
         try:
             yield client
         finally:
             client.close()
 
     def __enter__(self):
-        self._shared_client = httpx.Client(base_url=self.base_url, timeout=self.timeout)
+        self._shared_client = httpx.Client(base_url=self.base_url, timeout=self.timeout, headers=self._get_headers())
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):

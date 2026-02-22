@@ -82,7 +82,7 @@ def run_status():
     repo_root = get_repo_root()
     table.add_row("Git repo", repo_root or "[red]not in a git repo[/red]")
 
-    client = AMSClient(base_url=config.ams_endpoint)
+    client = AMSClient(base_url=config.ams_endpoint, auth_token=config.ams_auth_token)
     try:
         health = client.health_check()
         ams_status = f"[green]healthy[/green] (endpoint: {config.ams_endpoint})"
