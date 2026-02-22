@@ -157,7 +157,7 @@ def ensure_stats_summary_view(client: AMSClient, namespace: str, time_window_day
             "group_by": ["user_id"],
             "filters": {
                 "namespace": {"eq": namespace},
-                "memory_type": {"eq": "semantic"},
+                "session_id": {"eq": "stats"},
             },
             "time_window_days": time_window_days,
             "prompt": STATS_VIEW_PROMPT,
@@ -190,6 +190,7 @@ def run_stats(
     all_time: bool = typer.Option(False, "--all-time", help="Show all-time stats (no time filter)"),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Minimal output"),
     create_views: bool = typer.Option(False, "--create-views", help="Create AMS summary views for team stats"),
+    summarize: bool = typer.Option(False, "--summarize", "-s", help="Show LLM-generated summary from AMS views"),
 ):
     """Show code contribution stats (AI vs Human).
 
@@ -234,8 +235,8 @@ def run_stats(
                 namespace=ns,
                 limit=100,
             )
-            # Filter for stats memories by ID prefix
-            memories = [m for m in all_memories if m.id.startswith("stats:")]
+            # Filter for stats memories by session_id
+            memories = [m for m in all_memories if m.session_id == "stats"]
             if not team:
                 # Filter by user_id
                 memories = [m for m in memories if m.user_id == current_user]
@@ -320,5 +321,33 @@ def run_stats(
                     console.print(f"  [dim]Per-user stats: {per_user_view.id}[/dim]")
                     if all_time_view and all_time_view.id:
                         console.print(f"  [dim]All-time stats: {all_time_view.id}[/dim]")
+
+            # Show LLM-generated summary from AMS views
+            if summarize:
+                from rich.panel import Panel
+
+                views = client.list_summary_views()
+                view_map = {v.name: v for v in views}
+
+                view_name = STATS_VIEW_ALL_TIME_NAME if all_time else STATS_VIEW_NAME
+                view = view_map.get(view_name)
+
+                if not view:
+                    console.print("[yellow]No summary view found. Run 'devmemory stats --create-views' first.[/yellow]")
+                else:
+                    partitions = client.get_summary_view_partitions(view.id, user_id=current_user if not team else None)
+
+                    if partitions:
+                        console.print(f"\n[bold]AI Summary (from AMS Summary View)[/bold]\n")
+                        for p in partitions:
+                            summary = p.get("summary", "No summary available")
+                            group = p.get("group", {})
+                            group_key = group.get("user_id", "team")
+                            console.print(Panel(summary, title=f"[cyan]{group_key}[/cyan]", border_style="dim"))
+                    else:
+                        console.print(
+                            "[yellow]No summary computed yet. The summary view may need time to process.[/yellow]"
+                        )
+                        console.print("[dim]Try running: devmemory stats --create-views[/dim]")
     except Exception as e:
-        log.debug(f"Could not create summary views: {e}")
+        log.debug(f"Could not show summary: {e}")

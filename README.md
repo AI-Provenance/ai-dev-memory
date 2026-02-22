@@ -307,23 +307,13 @@ devmemory stats --days 90
 
 # All-time stats (no time filter)
 devmemory stats --all-time
-
-# Create AMS Summary Views for automated team stats
-devmemory stats --create-views
 ```
 
-**Summary Views:**
-
-Run `devmemory stats --create-views` once to set up AMS Summary Views that automatically aggregate stats per user:
-
-| View | Time Window | Description |
-|------|-------------|-------------|
-| `team-code-stats` | 30 days | Per-user stats for recent commits |
-| `team-code-stats-all-time` | All time | Per-user stats for all commits |
-
-Summary views are continuous - they'll automatically refresh as new commits are synced.
-
 **Note:** Stats are only available for commits that have AI notes (Git AI must be installed and tracking commits). Run `devmemory sync` after making commits to store their stats.
+
+**About Summary Views:**
+
+The `--create-views` flag attempts to create AMS Summary Views for automated aggregation, but due to current AMS limitations with filtering by session ID, the numeric stats shown above are more reliable. Summary Views may show "No memories found" in some configurations.
 
 ---
 
