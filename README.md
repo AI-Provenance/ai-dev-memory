@@ -287,7 +287,7 @@ MCP_ENDPOINT=https://amsmcp.yourdomain.com
 AMS_AUTH_TOKEN=your_auth_token_here
 ```
 
-The auth token is **always read from environment variables** for security and is never stored in config files.
+The auth token is **always read from environment variables** for security and is never stored in config files. Running `devmemory config set ams_auth_token <value>` will be rejected - you must use the `AMS_AUTH_TOKEN` environment variable.
 
 ---
 

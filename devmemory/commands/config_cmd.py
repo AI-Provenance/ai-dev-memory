@@ -38,13 +38,18 @@ def show():
             except Exception:
                 pass
 
+    SENSITIVE_KEYS = {"ams_auth_token"}
+
     table = Table(title="DevMemory Configuration", show_header=True, border_style="dim")
     table.add_column("Key", style="bold")
     table.add_column("Value")
     table.add_column("Source", style="dim")
 
     for key, value in asdict(config).items():
-        display = str(value) if value else "[dim]not set[/dim]"
+        if key in SENSITIVE_KEYS and value:
+            display = f"[dim]{value[:4]}...{value[-4:]}[/dim]" if len(value) > 8 else "[dim]***[/dim]"
+        else:
+            display = str(value) if value else "[dim]not set[/dim]"
         source = "default"
         if key in local_data:
             source = "[cyan]local[/cyan]"
@@ -56,11 +61,11 @@ def show():
                     source = "global"
             except Exception:
                 pass
-        
+
         table.add_row(key, display, source)
 
     console.print(table)
-    
+
     if repo_root:
         active_ns = config.get_active_namespace()
         console.print(f"\n[dim]Active scoped namespace:[/dim] [bold cyan]{active_ns}[/bold cyan]")
@@ -74,19 +79,28 @@ def set_value(
     local: bool = typer.Option(False, "--local", "-l", help="Save to local repository configuration."),
 ):
     config = DevMemoryConfig.load()
+
+    # Prevent setting auth token from config - must use environment variable
+    if key == "ams_auth_token":
+        console.print(
+            "[red]ams_auth_token cannot be set via config. Use AMS_AUTH_TOKEN environment variable instead.[/red]"
+        )
+        raise typer.Exit(1)
+
     try:
         field_type = config.__dataclass_fields__.get(key)
-        if field_type and field_type.type == bool:
+        parsed_value: str | bool = value
+        if field_type and field_type.type == bool:  # type: ignore[union-attr]
             if value.lower() in ("true", "1", "yes", "on"):
-                value = True
+                parsed_value = True
             elif value.lower() in ("false", "0", "no", "off"):
-                value = False
+                parsed_value = False
             else:
                 console.print(f"[red]Invalid boolean value: {value}. Use true/false, 1/0, yes/no, or on/off.[/red]")
                 raise typer.Exit(1)
-        config.set_value(key, value, local=local)
+        config.set_value(key, parsed_value, local=local)  # type: ignore[arg-type]
         loc_str = " (local)" if local else " (global)"
-        console.print(f"[green]Set {key} = {value}{loc_str}[/green]")
+        console.print(f"[green]Set {key} = {parsed_value}{loc_str}[/green]")
     except Exception as e:
         console.print(f"[red]{e}[/red]")
         raise typer.Exit(1)
