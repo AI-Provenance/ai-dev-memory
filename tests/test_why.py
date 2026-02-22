@@ -58,20 +58,22 @@ def test_get_git_log_returns_empty_on_error(monkeypatch):
 
 
 def test_blame_summary_parses_porcelain(monkeypatch):
-    porcelain = "\n".join([
-        "abcdef1234567890abcdef1234567890abcdef12 1 1 3",
-        "author Alice",
-        "author-mail <alice@example.com>",
-        "author-time 1700000000",
-        "author-tz +0000",
-        "committer Alice",
-        "committer-mail <alice@example.com>",
-        "committer-time 1700000000",
-        "committer-tz +0000",
-        "summary feat: initial commit",
-        "filename src/auth.py",
-        "\tdef login():",
-    ])
+    porcelain = "\n".join(
+        [
+            "abcdef1234567890abcdef1234567890abcdef12 1 1 3",
+            "author Alice",
+            "author-mail <alice@example.com>",
+            "author-time 1700000000",
+            "author-tz +0000",
+            "committer Alice",
+            "committer-mail <alice@example.com>",
+            "committer-time 1700000000",
+            "committer-tz +0000",
+            "summary feat: initial commit",
+            "filename src/auth.py",
+            "\tdef login():",
+        ]
+    )
 
     call_count = 0
 
@@ -117,6 +119,7 @@ def test_blame_summary_returns_empty_on_error(monkeypatch):
 
 def test_system_prompt_is_distinct_from_search():
     from devmemory.core.llm_client import SYSTEM_PROMPT as SEARCH_PROMPT
+
     assert WHY_SYSTEM_PROMPT != SEARCH_PROMPT
     assert WHY_SYSTEM_PROMPT_VERBOSE != SEARCH_PROMPT
     assert "code historian" in WHY_SYSTEM_PROMPT
@@ -195,6 +198,7 @@ def test_synthesize_why_uses_verbose_prompt(monkeypatch):
 
 def _make_fake_memory(id: str, text: str, score: float, memory_type: str = "semantic"):
     from devmemory.core.ams_client import MemoryResult
+
     return MemoryResult(
         id=id,
         text=text,
@@ -210,7 +214,11 @@ def test_run_why_raw_shows_git_history_when_search_fails(monkeypatch, capsys):
     """When AMS search fails, raw mode should still show git history."""
     monkeypatch.setattr(
         "devmemory.commands.why.DevMemoryConfig.load",
-        lambda: type("C", (), {"ams_endpoint": "http://localhost:8000", "namespace": ""})(),
+        lambda: type(
+            "C",
+            (),
+            {"ams_endpoint": "http://localhost:8000", "namespace": "", "get_auth_token": staticmethod(lambda: "")},
+        )(),
     )
 
     class FakeClient:
@@ -234,7 +242,8 @@ def test_run_why_raw_shows_git_history_when_search_fails(monkeypatch, capsys):
             return subprocess.CompletedProcess(cmd, 0)
         if "git log" in cmd_str:
             return subprocess.CompletedProcess(
-                cmd, 0,
+                cmd,
+                0,
                 stdout="abc123|Dev|feat: add file|2026-01-01T00:00:00+00:00",
                 stderr="",
             )
@@ -251,7 +260,11 @@ def test_run_why_raw_shows_git_history_when_search_fails(monkeypatch, capsys):
 def test_run_why_exits_for_missing_file(monkeypatch):
     monkeypatch.setattr(
         "devmemory.commands.why.DevMemoryConfig.load",
-        lambda: type("C", (), {"ams_endpoint": "http://localhost:8000", "namespace": ""})(),
+        lambda: type(
+            "C",
+            (),
+            {"ams_endpoint": "http://localhost:8000", "namespace": "", "get_auth_token": staticmethod(lambda: "")},
+        )(),
     )
 
     class FakeClient:
@@ -275,7 +288,11 @@ def test_run_why_exits_for_missing_file(monkeypatch):
 def test_run_why_exits_when_ams_unreachable(monkeypatch):
     monkeypatch.setattr(
         "devmemory.commands.why.DevMemoryConfig.load",
-        lambda: type("C", (), {"ams_endpoint": "http://localhost:8000", "namespace": ""})(),
+        lambda: type(
+            "C",
+            (),
+            {"ams_endpoint": "http://localhost:8000", "namespace": "", "get_auth_token": staticmethod(lambda: "")},
+        )(),
     )
 
     class FakeClient:

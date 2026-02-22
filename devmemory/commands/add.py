@@ -24,7 +24,7 @@ def run_add(
     interactive: bool = False,
 ):
     config = DevMemoryConfig.load()
-    client = AMSClient(base_url=config.ams_endpoint, auth_token=config.ams_auth_token)
+    client = AMSClient(base_url=config.ams_endpoint, auth_token=config.get_auth_token())
 
     try:
         client.health_check()
@@ -81,7 +81,7 @@ def _interactive_prompt(
     default_entities: list[str] | None = None,
 ) -> str | None:
     config = DevMemoryConfig.load()
-    client = AMSClient(base_url=config.ams_endpoint, auth_token=config.ams_auth_token)
+    client = AMSClient(base_url=config.ams_endpoint, auth_token=config.get_auth_token())
 
     console.print("[bold]Add a memory[/bold]\n")
     console.print("[dim]Types of knowledge to store:[/dim]")

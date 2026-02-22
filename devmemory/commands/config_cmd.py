@@ -2,6 +2,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 from dataclasses import asdict
+import os
 
 import json
 from pathlib import Path
@@ -27,18 +28,14 @@ def show():
 
     config = DevMemoryConfig.load()
     repo_root = get_repo_root()
-    local_exists = False
     local_data = {}
     if repo_root:
         local_file = Path(repo_root) / ".devmemory" / "config.json"
         if local_file.exists():
-            local_exists = True
             try:
                 local_data = json.loads(local_file.read_text())
             except Exception:
                 pass
-
-    SENSITIVE_KEYS = {"ams_auth_token"}
 
     table = Table(title="DevMemory Configuration", show_header=True, border_style="dim")
     table.add_column("Key", style="bold")
@@ -46,23 +43,26 @@ def show():
     table.add_column("Source", style="dim")
 
     for key, value in asdict(config).items():
-        if key in SENSITIVE_KEYS and value:
-            display = f"[dim]{value[:4]}...{value[-4:]}[/dim]" if len(value) > 8 else "[dim]***[/dim]"
-        else:
-            display = str(value) if value else "[dim]not set[/dim]"
+        display = str(value) if value else "[dim]not set[/dim]"
         source = "default"
         if key in local_data:
             source = "[cyan]local[/cyan]"
         elif CONFIG_FILE.exists():
-            # Check if it was in global
             try:
                 raw_global = json.loads(CONFIG_FILE.read_text())
                 if key in raw_global:
                     source = "global"
             except Exception:
                 pass
-
         table.add_row(key, display, source)
+
+    # Add AMS_AUTH_TOKEN row (always from environment)
+    auth_token = os.environ.get("AMS_AUTH_TOKEN", "")
+    if auth_token:
+        display = f"[dim]{auth_token[:4]}...{auth_token[-4:]}[/dim]" if len(auth_token) > 8 else "[dim]***[/dim]"
+    else:
+        display = "[dim]not set[/dim]"
+    table.add_row("ams_auth_token", display, "[yellow]env[/yellow]")
 
     console.print(table)
 

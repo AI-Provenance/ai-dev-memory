@@ -327,7 +327,7 @@ def run_sync(
             state.mark_synced(notes[0].sha, count=0)
         raise typer.Exit(0)
 
-    client = AMSClient(base_url=config.ams_endpoint, auth_token=config.ams_auth_token)
+    client = AMSClient(base_url=config.ams_endpoint, auth_token=config.get_auth_token())
 
     try:
         client.health_check()

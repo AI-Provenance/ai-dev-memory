@@ -16,7 +16,6 @@ CONFIG_FILE = CONFIG_DIR / "config.json"
 DEFAULTS = {
     "ams_endpoint": os.environ.get("AMS_ENDPOINT", "http://localhost:8000"),
     "mcp_endpoint": os.environ.get("MCP_ENDPOINT", "http://localhost:9050"),
-    "ams_auth_token": os.environ.get("AMS_AUTH_TOKEN", ""),
     "namespace": "default",
     "user_id": "",
     "auto_summarize": False,
@@ -27,10 +26,14 @@ DEFAULTS = {
 class DevMemoryConfig:
     ams_endpoint: str = DEFAULTS["ams_endpoint"]
     mcp_endpoint: str = DEFAULTS["mcp_endpoint"]
-    ams_auth_token: str = DEFAULTS["ams_auth_token"]
     namespace: str = DEFAULTS["namespace"]
     user_id: str = DEFAULTS["user_id"]
     auto_summarize: bool = DEFAULTS["auto_summarize"]
+
+    @staticmethod
+    def get_auth_token() -> str:
+        """Get AMS auth token from environment variable (never from config)."""
+        return os.environ.get("AMS_AUTH_TOKEN", "")
 
     @classmethod
     def load(cls) -> DevMemoryConfig:
@@ -62,14 +65,11 @@ class DevMemoryConfig:
                 except Exception as e:
                     log.warning(f"load: failed to parse local config - {e}")
 
-        # 3. Environment variables override saved config (for security: AMS_AUTH_TOKEN only from env)
+        # 3. Environment variables override saved config
         if os.environ.get("AMS_ENDPOINT"):
             config.ams_endpoint = os.environ["AMS_ENDPOINT"]
         if os.environ.get("MCP_ENDPOINT"):
             config.mcp_endpoint = os.environ["MCP_ENDPOINT"]
-        # Always read AMS_AUTH_TOKEN from env - never from saved config
-        if os.environ.get("AMS_AUTH_TOKEN"):
-            config.ams_auth_token = os.environ["AMS_AUTH_TOKEN"]
 
         return config
 

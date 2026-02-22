@@ -121,7 +121,7 @@ def run_summarize(
     """Create and manage project-level summaries using Redis AMS summary views."""
 
     config = DevMemoryConfig.load()
-    client = AMSClient(base_url=config.ams_endpoint, auth_token=config.ams_auth_token)
+    client = AMSClient(base_url=config.ams_endpoint, auth_token=config.get_auth_token())
 
     try:
         client.health_check()
@@ -225,7 +225,7 @@ def run_generate_architecture_summary(
 
     # Create architecture evolution view
     config = DevMemoryConfig.load()
-    client = AMSClient(base_url=config.ams_endpoint, auth_token=config.ams_auth_token)
+    client = AMSClient(base_url=config.ams_endpoint, auth_token=config.get_auth_token())
 
     try:
         view = _create_architecture_evolution_view(client, namespace, time_window)
