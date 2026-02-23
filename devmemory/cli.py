@@ -100,6 +100,9 @@ def status():
 @app.command()
 def stats(
     team: bool = typer.Option(False, "--team", "-t", help="Show team-wide stats instead of individual."),
+    all_repos: bool = typer.Option(False, "--all-repos", "-a", help="Show stats across all team repos."),
+    by_repo: bool = typer.Option(False, "--by-repo", "-r", help="Show breakdown by repository for each developer."),
+    top_repos: Optional[int] = typer.Option(None, "--top-repos", help="Show top N most active repositories."),
     days: Optional[int] = typer.Option(None, "--days", "-d", help="Filter to last N days (e.g., 30, 90)."),
     all_time: bool = typer.Option(False, "--all-time", help="Show all-time stats (no time filter)."),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Minimal output."),
@@ -108,9 +111,12 @@ def stats(
 ):
     """Show code contribution stats (AI vs Human).
 
-    By default shows individual stats. Use --team for team-wide stats.
+    By default shows individual stats. Use --team for current repo team stats.
+    Use --all-repos for all team repos (auto-discovered from AMS).
+    Use --by-repo for per-repository breakdown.
+    Use --top-repos N to show top N active repos.
     """
-    run_stats(team=team, days=days, all_time=all_time, quiet=quiet, create_views=create_views, summarize=summarize)
+    run_stats(team=team, all_repos=all_repos, by_repo=by_repo, top_repos=top_repos, days=days, all_time=all_time, quiet=quiet, create_views=create_views, summarize=summarize)
 
 
 @app.command()

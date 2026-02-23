@@ -160,11 +160,17 @@ class AMSClient:
             if self._shared_client:
                 client = self._shared_client
                 resp = client.post("/v1/long-term-memory/search", json=payload)
+                log.debug(f"search_memories response status: {resp.status_code}")
+                if resp.status_code != 200:
+                    log.error(f"search_memories response body: {resp.text}")
                 resp.raise_for_status()
                 data = resp.json()
             else:
                 with self._client_context() as client:
                     resp = client.post("/v1/long-term-memory/search", json=payload)
+                    log.debug(f"search_memories response status: {resp.status_code}")
+                    if resp.status_code != 200:
+                        log.error(f"search_memories response body: {resp.text}")
                     resp.raise_for_status()
                     data = resp.json()
 
