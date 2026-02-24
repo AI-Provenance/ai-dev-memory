@@ -31,6 +31,8 @@ dependencies = [
     "rich>=13.0.0",
     "tiktoken>=0.12.0",
     "tenacity>=8.0.0",
+    "redis>=5.0.0",
+    "python-dotenv>=1.0.0",
 ]
 
 [project.scripts]
@@ -47,6 +49,10 @@ dev = [
     "ruff>=0.6.0",
     "build>=1.2.2",
     "twine>=5.0.0",
+]
+sentry = [
+    "sentry-sdk>=1.40.0",
+    "httpx>=0.27.0",
 ]
 
 [tool.hatch.build.targets.wheel]

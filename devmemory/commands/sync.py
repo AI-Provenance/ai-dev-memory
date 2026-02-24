@@ -19,6 +19,7 @@ from devmemory.core.memory_formatter import (
 from devmemory.core.ams_client import AMSClient
 from devmemory.core.memory_formatter import generate_commit_summary
 from devmemory.core.logging_config import get_logger
+from devmemory.attribution import AttributionStorage, AttributionConfig
 from datetime import datetime, timezone
 
 log = get_logger(__name__)
@@ -339,6 +340,21 @@ def run_sync(
             console.print("[dim]Is the Docker stack running? Try: make up[/dim]")
         raise typer.Exit(1)
 
+    # Check Redis connectivity for attribution (non-blocking warning)
+    redis_available = True
+    attr_config = None
+    try:
+        attr_config = AttributionConfig.load()
+        attr_storage = AttributionStorage(attr_config.redis_url)
+        attr_storage.redis.ping()
+        attr_storage.close()
+    except Exception as e:
+        redis_available = False
+        if not quiet:
+            console.print(f"[yellow]⚠ Redis unreachable - attribution storage disabled[/yellow]")
+            if attr_config:
+                console.print(f"[dim]  Endpoint: {attr_config.redis_url}[/dim]")
+
     if not quiet:
         console.print(f"[bold]Syncing {len(notes_to_sync)} commit(s)...[/bold]")
 
@@ -439,6 +455,54 @@ def run_sync(
             log.warning(f"run_sync: stats storage failed (non-blocking) - {e}")
             if not quiet:
                 console.print(f"[yellow]⚠ Stats storage failed (non-blocking): {e}[/yellow]")
+
+    # Store line-level attribution in Redis for production bug attribution
+    if notes_to_sync and redis_available and attr_config:
+        try:
+            attr_config = AttributionConfig.load()
+            attr_storage = AttributionStorage(attr_config.redis_url)
+
+            stored_count = 0
+            for note in notes_to_sync:
+                if not note.has_ai_note:
+                    continue
+
+                for file_attr in note.files:
+                    if not file_attr.prompt_lines:
+                        continue
+
+                    # Build line ranges dict
+                    line_ranges = {}
+                    for prompt_id, ranges in file_attr.prompt_lines.items():
+                        prompt = note.prompts.get(prompt_id)
+                        for r in ranges:
+                            line_ranges[r] = {
+                                "author": "ai",
+                                "prompt_id": prompt_id,
+                                "tool": prompt.tool if prompt else None,
+                                "model": prompt.model if prompt else None,
+                            }
+
+                    if line_ranges:
+                        attr_storage.store_attribution(
+                            namespace=ns,
+                            filepath=file_attr.filepath,
+                            commit_sha=note.sha,
+                            author_email=note.author_email,
+                            line_ranges=line_ranges,
+                        )
+                        stored_count += 1
+
+            attr_storage.close()
+
+            if stored_count > 0 and not quiet:
+                console.print(f"[green]✓ Stored line attribution for {stored_count} file(s) in Redis[/green]")
+            log.debug(f"run_sync: stored attribution for {stored_count} files")
+
+        except Exception as e:
+            log.warning(f"run_sync: attribution storage failed (non-blocking) - {e}")
+            if not quiet:
+                console.print(f"[yellow]⚠ Attribution storage failed (non-blocking): {e}[/yellow]")
 
     # Auto-summarization for project and architecture levels
     if config.auto_summarize and len(notes_to_sync) >= 3:  # Only trigger for significant batches
