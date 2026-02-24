@@ -8,6 +8,8 @@ from devmemory.core.sync_state import SyncState
 from devmemory.core.git_ai_parser import get_git_ai_version, is_git_ai_installed, get_repo_stats, RepoStats
 from devmemory.core.utils import get_repo_root
 from devmemory.core.ams_client import AMSClient
+from devmemory.attribution.config import AttributionConfig, _mask_password
+from devmemory.attribution.redis_storage import AttributionStorage
 from devmemory import __version__
 
 console = Console()
@@ -110,6 +112,23 @@ def run_status():
         table.add_row("Memories stored", str(count) if count >= 0 else "[yellow]unknown[/yellow]")
     else:
         table.add_row("Memories stored", "[dim]N/A[/dim]")
+
+    # Redis connectivity check for attribution
+    try:
+        attr_config = AttributionConfig.load()
+        attr_storage = AttributionStorage(attr_config.redis_url)
+        attr_storage.redis.ping()
+        masked_url = _mask_password(attr_config.redis_url)
+        redis_status = f"[green]connected[/green] (endpoint: {masked_url})"
+        attr_storage.close()
+    except Exception:
+        try:
+            attr_config = AttributionConfig.load()
+            redis_url = _mask_password(attr_config.redis_url)
+        except Exception:
+            redis_url = "redis://localhost:6379"
+        redis_status = f"[red]unreachable[/red] (endpoint: {redis_url})"
+    table.add_row("Redis (attribution)", redis_status)
 
     table.add_row("Namespace", config.namespace)
     table.add_row("User ID", config.user_id or "[dim]auto (from git)[/dim]")
