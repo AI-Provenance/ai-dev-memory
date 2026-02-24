@@ -51,6 +51,11 @@ def _get_repo_id() -> str:
     return "unknown"
 
 
+def _get_ams_url() -> str:
+    """Get AMS URL from environment or use default."""
+    return os.environ.get("DEVMEMORY_AMS_URL", "http://localhost:8000")
+
+
 class DevMemoryOptions:
     """Configuration options for DevMemory Sentry processor."""
 
@@ -61,7 +66,8 @@ class DevMemoryOptions:
         timeout: float = 2.0,
         enabled: bool = True,
     ):
-        self.ams_url = ams_url or os.environ.get("DEVMEMORY_AMS_URL", "http://localhost:8000")
+        # Auto-detect ams_url from environment if not provided
+        self.ams_url = ams_url or _get_ams_url()
 
         # Auto-detect repo_id if not provided
         if repo_id:
