@@ -484,12 +484,23 @@ def run_sync(
                             }
 
                     if line_ranges:
+                        # Convert commit date to timestamp
+                        from datetime import datetime
+
+                        try:
+                            # note.date is ISO format string
+                            dt = datetime.fromisoformat(note.date.replace("Z", "+00:00"))
+                            commit_timestamp = int(dt.timestamp())
+                        except Exception:
+                            commit_timestamp = None
+
                         attr_storage.store_attribution(
                             namespace=ns,
                             filepath=file_attr.filepath,
                             commit_sha=note.sha,
                             author_email=note.author_email,
                             line_ranges=line_ranges,
+                            commit_timestamp=commit_timestamp,
                         )
                         stored_count += 1
 

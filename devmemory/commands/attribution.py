@@ -200,7 +200,7 @@ def lookup_line(
     commit_sha: str = typer.Argument(None, help="Commit SHA (auto-detected if not provided)"),
     namespace: str = typer.Option(None, "--namespace", "-n", help="Namespace"),
 ):
-    """Look up AI attribution for a specific line."""
+    """Look up AI attribution for a specific line (uses latest commit by default)."""
     ns = namespace or _get_namespace()
 
     try:
@@ -211,21 +211,21 @@ def lookup_line(
         raise typer.Exit(1)
 
     try:
-        if not commit_sha:
-            pattern = f"attr:{ns}:{filepath}:*"
-            keys = storage.redis.keys(pattern)
-            if not keys:
-                console.print(f"[red]No attribution found for {filepath}[/red]")
+        if commit_sha:
+            # Explicit commit provided - use it
+            result = storage.get_attribution(ns, filepath, commit_sha, lineno)
+        else:
+            # Use latest attribution (recommended)
+            result = storage.get_latest_attribution(ns, filepath, lineno)
+            if not result:
+                console.print(f"[red]No attribution found for {filepath}:{lineno}[/red]")
                 raise typer.Exit(1)
-            keys = sorted(keys)
-            commit_sha = keys[-1].split(":")[-1]
-
-        result = storage.get_attribution(ns, filepath, commit_sha, lineno)
+            commit_sha = result.get("commit_sha", "unknown")
 
         console.print(f"\n[bold]File:[/bold] {filepath}")
         console.print(f"[bold]Line:[/bold] {lineno}")
         console.print(f"[bold]Namespace:[/bold] {ns}")
-        console.print(f"[bold]Commit:[/bold] {commit_sha[:8]}")
+        console.print(f"[bold]Commit:[/bold] {commit_sha[:8] if commit_sha != 'unknown' else 'unknown'}")
         console.print()
 
         if result.get("author") == "ai":
@@ -242,6 +242,62 @@ def lookup_line(
         if result.get("author_email"):
             console.print(f"[bold]Author:[/bold] {result['author_email']}")
         console.print(f"[bold]Confidence:[/bold] {result.get('confidence', 0.95)}")
+
+    finally:
+        storage.close()
+
+
+@attribution_app.command("history")
+def file_history(
+    filepath: str = typer.Argument(..., help="File path"),
+    limit: int = typer.Option(20, "--limit", "-l", help="Number of commits to show"),
+    namespace: str = typer.Option(None, "--namespace", "-n", help="Namespace"),
+):
+    """Show commit history for a file's attributions."""
+    ns = namespace or _get_namespace()
+
+    try:
+        config = AttributionConfig.load()
+        storage = AttributionStorage(config.redis_url)
+    except Exception as e:
+        console.print(f"[red]Failed to connect to Redis: {e}[/red]")
+        raise typer.Exit(1)
+
+    try:
+        history = storage.get_file_history(ns, filepath, limit)
+
+        if not history:
+            console.print(f"[yellow]No history found for {filepath}[/yellow]")
+            raise typer.Exit(0)
+
+        console.print(f"\n[bold]File:[/bold] {filepath}")
+        console.print(f"[bold]Namespace:[/bold] {ns}")
+        console.print()
+
+        table = Table(title=f"Attribution History ({len(history)} commits)")
+        table.add_column("Commit", style="yellow")
+        table.add_column("Date", style="cyan")
+        table.add_column("Ranges", style="green")
+
+        import json
+        from datetime import datetime
+
+        for entry in history:
+            commit_sha = entry["commit_sha"]
+            timestamp = entry["timestamp"]
+
+            # Get ranges for this commit
+            attr_key = f"attr:{ns}:{filepath}:{commit_sha}"
+            ranges = storage.redis.hgetall(attr_key)
+            range_count = len([k for k in ranges.keys() if k != "_meta"])
+
+            # Format date
+            dt = datetime.fromtimestamp(timestamp)
+            date_str = dt.strftime("%Y-%m-%d %H:%M")
+
+            table.add_row(commit_sha[:8], date_str, str(range_count))
+
+        console.print(table)
 
     finally:
         storage.close()

@@ -33,6 +33,14 @@ class AttributionStorage:
         """Generate Redis key for deployment mapping."""
         return f"deploy:{namespace}:{release}"
 
+    def _latest_key(self, namespace: str, filepath: str) -> str:
+        """Generate Redis key for latest commit pointer."""
+        return f"attr_latest:{namespace}:{filepath}"
+
+    def _history_key(self, namespace: str, filepath: str) -> str:
+        """Generate Redis key for file commit history."""
+        return f"attr_history:{namespace}:{filepath}"
+
     def store_attribution(
         self,
         namespace: str,
@@ -40,6 +48,7 @@ class AttributionStorage:
         commit_sha: str,
         author_email: str,
         line_ranges: dict[str, dict],
+        commit_timestamp: Optional[int] = None,
     ) -> None:
         """
         Store line-level attribution for a file.
@@ -51,6 +60,7 @@ class AttributionStorage:
             author_email: Committer email
             line_ranges: Dict mapping line ranges to attribution data
                          e.g., {"1-45": {"author": "ai", "tool": "cursor", "prompt_id": "abc"}}
+            commit_timestamp: Unix timestamp of commit (for history sorting)
         """
         key = self._attr_key(namespace, filepath, commit_sha)
 
@@ -74,9 +84,21 @@ class AttributionStorage:
         )
 
         pipe.expire(key, ATTR_TTL_SECONDS)
+
+        # Update latest pointer
+        latest_key = self._latest_key(namespace, filepath)
+        pipe.set(latest_key, commit_sha, ex=ATTR_TTL_SECONDS)
+
+        # Add to history index
+        if commit_timestamp:
+            history_key = self._history_key(namespace, filepath)
+            pipe.zadd(history_key, {commit_sha: commit_timestamp})
+            pipe.expire(history_key, ATTR_TTL_SECONDS)
+
         pipe.execute()
 
         log.debug(f"Stored attribution for {filepath}@{commit_sha[:8]} ({len(line_ranges)} ranges)")
+        log.debug(f"Updated latest pointer and history for {filepath}")
 
     def store_deployment(
         self,
@@ -104,7 +126,7 @@ class AttributionStorage:
         lineno: int,
     ) -> Optional[dict]:
         """
-        Get attribution for a specific line.
+        Get attribution for a specific line in a specific commit.
 
         Returns:
             Attribution dict with keys: author, tool, model, prompt_id, author_email
@@ -130,6 +152,77 @@ class AttributionStorage:
 
         log.debug(f"No AI attribution for {filepath}:{lineno}, defaulting to human")
         return {"author": "human"}
+
+    def get_latest_attribution(
+        self,
+        namespace: str,
+        filepath: str,
+        lineno: int,
+        fallback_depth: int = 10,
+    ) -> Optional[dict]:
+        """
+        Get the latest attribution for a specific line.
+
+        This is the primary method for Sentry lookups - no commit SHA needed!
+
+        Args:
+            namespace: Repository namespace
+            filepath: Source file path
+            lineno: Line number
+            fallback_depth: How many historical commits to check if not in latest (default: 10)
+
+        Returns:
+            Attribution dict or None if not found
+        """
+        # Try latest commit first
+        latest_key = self._latest_key(namespace, filepath)
+        latest_commit = self.redis.get(latest_key)
+
+        if latest_commit:
+            attr = self.get_attribution(namespace, filepath, latest_commit, lineno)
+            if attr and attr.get("author") != "human":
+                return attr
+
+        # Fallback: Check history (last N commits)
+        history_key = self._history_key(namespace, filepath)
+        commits = self.redis.zrevrange(history_key, 0, fallback_depth - 1)
+
+        for commit_sha in commits:
+            attr = self.get_attribution(namespace, filepath, commit_sha, lineno)
+            if attr and attr.get("author") != "human":
+                log.debug(f"Found attribution in history: {filepath}:{lineno} @ {commit_sha[:8]}")
+                return attr
+
+        log.debug(f"No attribution found for {filepath}:{lineno} in latest or history")
+        return None
+
+    def get_file_history(
+        self,
+        namespace: str,
+        filepath: str,
+        limit: int = 50,
+    ) -> list[dict]:
+        """
+        Get commit history for a file.
+
+        Returns:
+            List of dicts with commit_sha and timestamp, sorted by most recent first
+        """
+        history_key = self._history_key(namespace, filepath)
+
+        # Get commits with timestamps
+        commits_with_scores = self.redis.zrevrange(history_key, 0, limit - 1, withscores=True)
+
+        result = []
+        for commit_sha, timestamp in commits_with_scores:
+            result.append(
+                {
+                    "commit_sha": commit_sha,
+                    "timestamp": int(timestamp),
+                }
+            )
+
+        return result
 
     def get_commit_for_release(
         self,
