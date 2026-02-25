@@ -20,7 +20,13 @@ class AttributionStorage:
         log.debug(f"AttributionStorage: initialized with {redis_url}")
 
     def _attr_key(self, namespace: str, filepath: str, commit_sha: str) -> str:
-        """Generate Redis key for attribution data."""
+        """
+        Generate Redis key for attribution data.
+
+        Key format: attr:{namespace}:{filepath}:{commit_sha}
+        Note: namespace already includes repo_id from config.get_active_namespace()
+        """
+        # namespace is already fully qualified (e.g., "default:git-github-com-org-repo")
         return f"attr:{namespace}:{filepath}:{commit_sha}"
 
     def _deploy_key(self, namespace: str, release: str) -> str:

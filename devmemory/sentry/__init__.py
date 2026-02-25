@@ -9,11 +9,12 @@ Usage:
     Sentry.init({
         "dsn": "...",
         "release": os.environ["APP_VERSION"],  # Must be commit SHA!
-        "before_send": create_before_send(
-            ams_url="https://ams.internal",
-            # repo_id is auto-detected from git if not provided
-        )
+        "before_send": create_before_send()
     })
+
+In production:
+    - DEVMEMORY_AMS_URL must be set (e.g., https://ams.internal)
+    - repo_id is auto-detected from devmemory config if available, otherwise from DEVMEMORY_REPO_ID
 
 Installation:
     pip install devmemory[sentry]
@@ -22,38 +23,87 @@ Installation:
 from __future__ import annotations
 
 import os
-from typing import Any, Awaitable, Callable, Optional
+from typing import Any, Callable, Optional
 
 # Type aliases for the callback
 Event = dict[str, Any]
 Hint = dict[str, Any]
-BeforeSend = Callable[[Event, Hint], Awaitable[Event]]
+BeforeSend = Callable[[Event, Hint], Event]
 
 
 def _get_repo_id() -> str:
-    """Auto-detect repo_id from git, fallback to environment or 'unknown'."""
-    # Try to get from git
-    try:
-        from devmemory.core.utils import get_repo_id as _get_git_repo_id
+    """
+    Get repo_id for attribution queries.
 
-        repo_id = _get_git_repo_id()
-        if repo_id and repo_id != "non-git":
-            return repo_id
-    except Exception:
-        pass
-
-    # Fallback to environment variable
+    Priority:
+    1. DEVMEMORY_REPO_ID environment variable (production can set this)
+    2. devmemory config (if available in production deployment)
+    3. Git remote (only works if git is available)
+    """
+    # Priority 1: Environment variable
     env_repo_id = os.environ.get("DEVMEMORY_REPO_ID")
     if env_repo_id:
         return env_repo_id
 
-    # Final fallback
-    return "unknown"
+    # Priority 2: Try devmemory config (works in production if config is deployed)
+    try:
+        from devmemory.core.config import DevMemoryConfig
+
+        config = DevMemoryConfig.load()
+        ns = config.get_active_namespace()
+        if ns and ns != "non-git":
+            return ns
+    except Exception:
+        pass
+
+    # Priority 3: Try git remote (usually not available in production pods)
+    try:
+        import subprocess
+
+        result = subprocess.run(["git", "remote", "get-url", "origin"], capture_output=True, text=True, timeout=2)
+        if result.returncode == 0 and result.stdout.strip():
+            remote_url = result.stdout.strip()
+            import re
+
+            clean_id = re.sub(r"[^a-zA-Z0-9]", "-", remote_url)
+            return clean_id.strip("-")
+    except Exception:
+        pass
+
+    # No way to determine repo_id
+    return ""
 
 
 def _get_ams_url() -> str:
-    """Get AMS URL from environment or use default."""
-    return os.environ.get("DEVMEMORY_AMS_URL", "http://localhost:8000")
+    """
+    Get AMS URL from environment variable.
+
+    In production, this MUST be set via DEVMEMORY_AMS_URL env var.
+    """
+    return os.environ.get("DEVMEMORY_AMS_URL", "")
+
+
+def _get_current_commit_sha() -> Optional[str]:
+    """
+    Get current commit SHA from git.
+
+    This is used as fallback when no release is set in Sentry event.
+    Works in local development and if git is available in container.
+    """
+    try:
+        import subprocess
+
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip()
+    except Exception:
+        pass
+    return None
 
 
 class DevMemoryOptions:
@@ -64,27 +114,24 @@ class DevMemoryOptions:
         ams_url: Optional[str] = None,
         repo_id: Optional[str] = None,
         timeout: float = 2.0,
-        enabled: bool = True,
     ):
-        # Auto-detect ams_url from environment if not provided
+        """
+        Initialize options.
+
+        Args:
+            ams_url: URL of the attribution API. Required - set via DEVMEMORY_AMS_URL env var.
+            repo_id: Repository identifier. Auto-detected if not provided.
+            timeout: Request timeout in seconds.
+        """
         self.ams_url = ams_url or _get_ams_url()
-
-        # Auto-detect repo_id if not provided
-        if repo_id:
-            self.repo_id = repo_id
-        else:
-            self.repo_id = _get_repo_id()
-
+        self.repo_id = repo_id or _get_repo_id()
         self.timeout = timeout
-        self.enabled = enabled and bool(self.repo_id)
 
     def validate(self) -> bool:
         """Check if configuration is valid."""
-        if not self.enabled:
-            return False
         if not self.ams_url:
             return False
-        if not self.repo_id or self.repo_id == "unknown":
+        if not self.repo_id:
             return False
         return True
 
@@ -127,11 +174,15 @@ def create_before_send(
     if not options.validate():
         return None
 
-    async def before_send(event: Event, hint: Hint) -> Event:
+    def before_send(event: Event, hint: Hint) -> Event:
         """Sentry before_send hook to add AI attribution."""
         release = event.get("release")
+
+        # If no release is set, try to get commit SHA from git
         if not release:
-            return event
+            release = _get_current_commit_sha()
+            if not release:
+                return event  # No way to identify the code version
 
         try:
             frame = _extract_first_in_app_frame(event)
@@ -144,7 +195,7 @@ def create_before_send(
             if not filepath or not lineno:
                 return event
 
-            attribution = await _lookup_attribution(
+            attribution = _lookup_attribution_sync(
                 ams_url=options.ams_url,
                 repo_id=options.repo_id,
                 release=release,
@@ -153,15 +204,22 @@ def create_before_send(
                 timeout=options.timeout,
             )
 
-            if attribution:
+            # Only tag if we have attribution data
+            if attribution and attribution.get("author"):
+                author = attribution.get("author")
+
+                # If author is "human" from API, it means we looked but found no AI
+                # Keep it as human (known to be written by human)
+                # If no attribution at all, author will be empty/None
+
                 event["tags"] = event.get("tags", {})
-                event["tags"]["ai_origin"] = attribution.get("author", "human")
-                event["tags"]["ai_tool"] = attribution.get("tool", "unknown")
+                event["tags"]["ai_origin"] = author if author else "unknown"
+                event["tags"]["ai_tool"] = attribution.get("tool") or "unknown"
                 event["tags"]["ai_confidence"] = attribution.get("confidence", 0)
 
                 event["contexts"] = event.get("contexts", {})
                 event["contexts"]["ai_attribution"] = {
-                    "author": attribution.get("author", "human"),
+                    "author": author if author else "unknown",
                     "tool": attribution.get("tool"),
                     "model": attribution.get("model"),
                     "confidence": attribution.get("confidence"),
@@ -201,7 +259,7 @@ def _extract_first_in_app_frame(event: Event) -> Optional[dict]:
     return None
 
 
-async def _lookup_attribution(
+def _lookup_attribution_sync(
     ams_url: str,
     repo_id: str,
     release: str,
@@ -209,32 +267,32 @@ async def _lookup_attribution(
     lineno: int,
     timeout: float,
 ) -> Optional[dict]:
-    """Call DevMemory attribution API."""
+    """Call DevMemory attribution API (synchronous)."""
     try:
-        import httpx
+        import requests
     except ImportError:
         return None
 
     url = f"{ams_url}/api/v1/attribution/lookup"
 
     try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            response = await client.post(
-                url,
-                json={
-                    "release": release,
-                    "repo_id": repo_id,
-                    "filepath": filepath,
-                    "lineno": lineno,
-                },
-            )
+        response = requests.post(
+            url,
+            json={
+                "release": release,
+                "repo_id": repo_id,
+                "filepath": filepath,
+                "lineno": lineno,
+            },
+            timeout=timeout,
+        )
 
-            if response.status_code == 200:
-                return response.json()
-            elif response.status_code == 404:
-                return None
-            else:
-                return None
+        if response.status_code == 200:
+            return response.json()
+        elif response.status_code == 404:
+            return None
+        else:
+            return None
 
     except Exception:
         return None
