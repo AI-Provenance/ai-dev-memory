@@ -153,46 +153,6 @@ def show_attribution(
         storage.close()
 
 
-@attribution_app.command("deployments")
-def list_deployments(
-    namespace: str = typer.Option(None, "--namespace", "-n", help="Filter by namespace"),
-    limit: int = typer.Option(20, "--limit", "-l", help="Number to show"),
-):
-    """List stored deployment mappings."""
-    ns = namespace or _get_namespace()
-
-    try:
-        config = AttributionConfig.load()
-        storage = AttributionStorage(config.redis_url)
-    except Exception as e:
-        console.print(f"[red]Failed to connect to Redis: {e}[/red]")
-        raise typer.Exit(1)
-
-    try:
-        pattern = f"deploy:{ns}:*"
-        keys = storage.redis.keys(pattern)
-
-        if not keys:
-            console.print(f"[yellow]No deployments found for namespace '{ns}'[/yellow]")
-            raise typer.Exit(0)
-
-        table = Table(title=f"Deployments in '{ns}' ({len(keys)} total)")
-        table.add_column("Release", style="cyan")
-        table.add_column("Commit SHA", style="yellow")
-
-        for key in keys[:limit]:
-            parts = key.split(":")
-            if len(parts) >= 3:
-                release = parts[2]
-                commit_sha = storage.redis.get(key) or "N/A"
-                table.add_row(release, commit_sha[:8])
-
-        console.print(table)
-
-    finally:
-        storage.close()
-
-
 @attribution_app.command("lookup")
 def lookup_line(
     filepath: str = typer.Argument(..., help="File path"),
