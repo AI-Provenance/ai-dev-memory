@@ -6,7 +6,7 @@ from devmemory.commands.attribution import attribution_app
 from devmemory.commands.context import run_context
 from devmemory.commands.install import run_install
 from devmemory.commands.learn import run_learn
-from devmemory.commands.prompts import run_prompts
+from devmemory.commands.prompts import prompts_app
 from devmemory.commands.search import run_search
 from devmemory.commands.status import run_status
 from devmemory.commands.stats import run_stats
@@ -84,13 +84,7 @@ def search(
     )
 
 
-@app.command()
-def prompts(
-    limit: int = typer.Option(50, "--limit", "-n", help="Max prompt memories to list."),
-    namespace: str = typer.Option("", "--namespace", "-ns", help="Filter by namespace."),
-):
-    """List prompt memories stored in AMS (newest first). Use to verify what prompts are in Redis."""
-    run_prompts(limit=limit, namespace=namespace)
+app.add_typer(prompts_app, name="prompts")
 
 
 @app.command()

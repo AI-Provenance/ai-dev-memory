@@ -3,11 +3,26 @@ from __future__ import annotations
 import typer
 from rich.console import Console
 from rich.table import Table
+from rich.syntax import Syntax
 
 from devmemory.core.config import DevMemoryConfig
 from devmemory.core.ams_client import AMSClient, MemoryResult
 
 console = Console()
+
+prompts_app = typer.Typer(name="prompts", help="Manage prompt memories in AMS")
+
+
+@prompts_app.callback(invoke_without_command=True)
+def default_prompts(
+    ctx: typer.Context,
+    limit: int = typer.Option(50, "--limit", "-l", help="Max prompt memories to list."),
+    namespace: str = typer.Option(None, "--namespace", "-n", help="Filter by namespace."),
+):
+    """List prompt memories stored in AMS (newest first)."""
+    if ctx.invoked_subcommand:
+        return
+    run_prompts(limit=limit, namespace=namespace)
 
 
 def _sort_by_created(results: list[MemoryResult]) -> list[MemoryResult]:
@@ -92,3 +107,52 @@ def run_prompts(
 
     console.print(table)
     console.print(f"[dim]{len(results)} prompt memory(ies) shown.[/dim]")
+
+
+@prompts_app.command("get")
+def get_prompt(
+    prompt_id: str = typer.Argument(..., help="Prompt ID to retrieve"),
+    namespace: str = typer.Option(None, "--namespace", "-n", help="Namespace"),
+):
+    """Get a specific prompt by ID."""
+    config = DevMemoryConfig.load()
+    ns = namespace or config.get_active_namespace()
+    base_url = config.ams_endpoint or "http://localhost:8000"
+    client = AMSClient(base_url=base_url, auth_token=config.get_auth_token())
+
+    try:
+        client.health_check()
+    except Exception as e:
+        console.print(f"[red]AMS unreachable at {base_url}: {e}[/red]")
+        raise typer.Exit(1)
+
+    # First try exact ID match
+    results = client.search_memories(text="", limit=100, namespace=ns)
+
+    memory = None
+    for r in results:
+        if r.id == prompt_id:
+            memory = r
+            break
+
+    # If not found, search by ID in text (for prompt_ids stored in content)
+    if not memory:
+        results = client.search_memories(text=prompt_id, limit=20, namespace=ns)
+        for r in results:
+            if prompt_id in (r.text or ""):
+                memory = r
+                break
+
+    if not memory:
+        console.print(f"[red]Prompt with ID '{prompt_id}' not found in AMS[/red]")
+        console.print("[dim]Note: Prompt may not be synced to AMS yet. Run 'devmemory sync' to sync prompts.[/dim]")
+        raise typer.Exit(1)
+
+    console.print(f"\n[bold]Prompt ID:[/bold] {memory.id}")
+    console.print(f"[bold]Created:[/bold] {memory.created_at}")
+    console.print(f"[bold]Namespace:[/bold] {memory.namespace}")
+    console.print(f"[bold]Topics:[/bold] {', '.join(memory.topics) if memory.topics else '-'}")
+    console.print()
+
+    syntax = Syntax(memory.text or "", "markdown", theme="monokai", line_numbers=True)
+    console.print(syntax)

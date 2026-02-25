@@ -37,13 +37,26 @@ def _extract_topics_from_paths(files: list[FileAttribution] | list[str]) -> list
 
         ext = fp.rsplit(".", 1)[-1].lower() if "." in fp else ""
         lang_map = {
-            "py": "python", "js": "javascript", "ts": "typescript",
-            "rs": "rust", "go": "go", "java": "java", "rb": "ruby",
-            "tsx": "react", "jsx": "react", "vue": "vue",
-            "css": "styling", "scss": "styling",
-            "sql": "database", "prisma": "database",
-            "yml": "config", "yaml": "config", "toml": "config", "json": "config",
-            "sh": "shell", "bash": "shell",
+            "py": "python",
+            "js": "javascript",
+            "ts": "typescript",
+            "rs": "rust",
+            "go": "go",
+            "java": "java",
+            "rb": "ruby",
+            "tsx": "react",
+            "jsx": "react",
+            "vue": "vue",
+            "css": "styling",
+            "scss": "styling",
+            "sql": "database",
+            "prisma": "database",
+            "yml": "config",
+            "yaml": "config",
+            "toml": "config",
+            "json": "config",
+            "sh": "shell",
+            "bash": "shell",
             "md": "documentation",
         }
         if ext in lang_map:
@@ -56,12 +69,17 @@ def _extract_topics_from_paths(files: list[FileAttribution] | list[str]) -> list
 
 def _extract_topics_from_subject(subject: str) -> list[str]:
     keywords = {
-        "fix": "bugfix", "bug": "bugfix",
-        "feat": "feature", "feature": "feature", "add": "feature",
+        "fix": "bugfix",
+        "bug": "bugfix",
+        "feat": "feature",
+        "feature": "feature",
+        "add": "feature",
         "refactor": "refactoring",
         "test": "testing",
-        "doc": "documentation", "docs": "documentation",
-        "ci": "ci-cd", "cd": "ci-cd",
+        "doc": "documentation",
+        "docs": "documentation",
+        "ci": "ci-cd",
+        "cd": "ci-cd",
         "style": "styling",
         "perf": "performance",
         "chore": "maintenance",
@@ -77,21 +95,36 @@ def _extract_topics_from_subject(subject: str) -> list[str]:
 
 
 def _extract_tech_entities_from_diff(diff_content: str, local_only: bool = False) -> list[str]:
-    if local_only: return [] # Let AMS handle it if configured
+    if local_only:
+        return []  # Let AMS handle it if configured
     entities: set[str] = set()
 
     # Optimized regex for common tech stack patterns
-    for match in re.findall(r'^\+\s*(?:from|import)\s+([\w.]+)', diff_content, re.MULTILINE):
+    for match in re.findall(r"^\+\s*(?:from|import)\s+([\w.]+)", diff_content, re.MULTILINE):
         top_module = match.split(".")[0]
         known = {
-            "fastapi": "FastAPI", "flask": "Flask", "django": "Django",
-            "typer": "Typer", "click": "Click", "rich": "Rich",
-            "httpx": "httpx", "requests": "requests", "aiohttp": "aiohttp",
-            "redis": "Redis", "sqlalchemy": "SQLAlchemy", "prisma": "Prisma",
-            "pydantic": "Pydantic", "pytest": "pytest",
-            "langchain": "LangChain", "openai": "OpenAI", "anthropic": "Anthropic",
-            "docker": "Docker", "celery": "Celery",
-            "numpy": "NumPy", "pandas": "Pandas", "torch": "PyTorch",
+            "fastapi": "FastAPI",
+            "flask": "Flask",
+            "django": "Django",
+            "typer": "Typer",
+            "click": "Click",
+            "rich": "Rich",
+            "httpx": "httpx",
+            "requests": "requests",
+            "aiohttp": "aiohttp",
+            "redis": "Redis",
+            "sqlalchemy": "SQLAlchemy",
+            "prisma": "Prisma",
+            "pydantic": "Pydantic",
+            "pytest": "pytest",
+            "langchain": "LangChain",
+            "openai": "OpenAI",
+            "anthropic": "Anthropic",
+            "docker": "Docker",
+            "celery": "Celery",
+            "numpy": "NumPy",
+            "pandas": "Pandas",
+            "torch": "PyTorch",
             "transformers": "Transformers",
         }
         if top_module.lower() in known:
@@ -103,11 +136,18 @@ def _extract_tech_entities_from_diff(diff_content: str, local_only: bool = False
 
     for match in re.findall(r'^\+\s*"([^"]+)":\s*"[\^~>=<]*\d', diff_content, re.MULTILINE):
         known_deps = {
-            "react": "React", "next": "Next.js", "vue": "Vue",
-            "express": "Express", "fastify": "Fastify",
-            "typescript": "TypeScript", "tailwindcss": "Tailwind CSS",
-            "webpack": "Webpack", "vite": "Vite", "esbuild": "esbuild",
-            "prisma": "Prisma", "drizzle-orm": "Drizzle",
+            "react": "React",
+            "next": "Next.js",
+            "vue": "Vue",
+            "express": "Express",
+            "fastify": "Fastify",
+            "typescript": "TypeScript",
+            "tailwindcss": "Tailwind CSS",
+            "webpack": "Webpack",
+            "vite": "Vite",
+            "esbuild": "esbuild",
+            "prisma": "Prisma",
+            "drizzle-orm": "Drizzle",
         }
         dep_name = match.lower()
         if dep_name in known_deps:
@@ -140,11 +180,11 @@ def _extract_added_lines(diff_content: str, max_chars: int = MAX_FILE_SNIPPET_CH
 
 def _extract_key_lines(diff_content: str, max_chars: int = MAX_FILE_SNIPPET_CHARS) -> str:
     key_patterns = [
-        re.compile(r'^\+\s*(class\s+\w+|def\s+\w+|async\s+def\s+\w+|function\s+\w+)'),
-        re.compile(r'^\+\s*(from\s+\w+\s+import|import\s+\w+)'),
-        re.compile(r'^\+\s*(image:\s*\S+)'),
-        re.compile(r'^\+\s*(export\s+(default\s+)?(class|function|const))'),
-        re.compile(r'^\+\s*[A-Z_]+='),
+        re.compile(r"^\+\s*(class\s+\w+|def\s+\w+|async\s+def\s+\w+|function\s+\w+)"),
+        re.compile(r"^\+\s*(from\s+\w+\s+import|import\s+\w+)"),
+        re.compile(r"^\+\s*(image:\s*\S+)"),
+        re.compile(r"^\+\s*(export\s+(default\s+)?(class|function|const))"),
+        re.compile(r"^\+\s*[A-Z_]+="),
     ]
 
     key_lines: list[str] = []
@@ -185,10 +225,7 @@ def _format_prompt_messages(messages: list[dict], max_chars: int = MAX_PROMPT_ME
         role = (msg.get("role") or msg.get("type", "user")).lower()
         content = msg.get("content") or msg.get("text", "")
         if isinstance(content, list):
-            content = " ".join(
-                c.get("text", "") if isinstance(c, dict) else str(c)
-                for c in content
-            )
+            content = " ".join(c.get("text", "") if isinstance(c, dict) else str(c) for c in content)
         if not content:
             continue
         label = "User" if role == "user" else "Assistant" if role == "assistant" else role
@@ -217,7 +254,7 @@ def format_commit_as_memories(
     all_diff_content = "\n".join(file_diffs.values())
 
     filepaths = [f.filepath for f in commit.files]
-    
+
     if local_enrichment:
         file_topics = _extract_topics_from_paths(commit.files)
         subject_topics = _extract_topics_from_subject(commit.subject)
@@ -242,10 +279,7 @@ def format_commit_as_memories(
                 if m.get("role") == "user":
                     content = m.get("content", "")
                     if isinstance(content, list):
-                        content = " ".join(
-                            c.get("text", "") if isinstance(c, dict) else str(c)
-                            for c in content
-                        )
+                        content = " ".join(c.get("text", "") if isinstance(c, dict) else str(c) for c in content)
                     first_user = content
                     break
             if first_user:
@@ -268,7 +302,7 @@ def format_commit_as_memories(
 
     if prompt_summaries:
         for i, ps in enumerate(prompt_summaries[:5]):
-            summary_parts.append(f"Prompt {i+1}: \"{ps}\"")
+            summary_parts.append(f'Prompt {i + 1}: "{ps}"')
 
     if commit.stats:
         s = commit.stats
@@ -310,16 +344,18 @@ def format_commit_as_memories(
     if prompt_summaries and "prompt" not in summary_topics:
         summary_topics = ["prompt"] + summary_topics
 
-    memories.append({
-        "id": _memory_id(commit.sha, idx),
-        "text": "\n".join(summary_parts),
-        "memory_type": "semantic",
-        "topics": summary_topics,
-        "entities": entities,
-        "namespace": namespace,
-        "user_id": user_id or commit.author_email,
-        "session_id": f"git-{commit.sha[:12]}",
-    })
+    memories.append(
+        {
+            "id": _memory_id(commit.sha, idx),
+            "text": "\n".join(summary_parts),
+            "memory_type": "semantic",
+            "topics": summary_topics,
+            "entities": entities,
+            "namespace": namespace,
+            "user_id": user_id or commit.author_email,
+            "session_id": f"git-{commit.sha[:12]}",
+        }
+    )
     idx += 1
 
     for filepath, diff_content in file_diffs.items():
@@ -354,16 +390,18 @@ def format_commit_as_memories(
 
         file_text_parts.append(f"Code changes:\n{code_snippet}")
 
-        memories.append({
-            "id": _memory_id(commit.sha, idx),
-            "text": "\n".join(file_text_parts),
-            "memory_type": "episodic",
-            "topics": file_path_topics if file_path_topics else ["code-change"],
-            "entities": [filepath] + file_tech,
-            "namespace": namespace,
-            "user_id": user_id or commit.author_email,
-            "session_id": f"git-{commit.sha[:12]}",
-        })
+        memories.append(
+            {
+                "id": _memory_id(commit.sha, idx),
+                "text": "\n".join(file_text_parts),
+                "memory_type": "episodic",
+                "topics": file_path_topics if file_path_topics else ["code-change"],
+                "entities": [filepath] + file_tech,
+                "namespace": namespace,
+                "user_id": user_id or commit.author_email,
+                "session_id": f"git-{commit.sha[:12]}",
+            }
+        )
         idx += 1
 
     seen_prompt_content: set[str] = set()
@@ -413,16 +451,18 @@ def format_commit_as_memories(
             prompt_topics = ["prompt"] + prompt_topics
 
         prompt_prefix = "Stored AI prompt for this repository. "
-        memories.append({
-            "id": _memory_id(commit.sha, idx),
-            "text": prompt_prefix + "\n".join(prompt_text_parts),
-            "memory_type": "semantic",
-            "topics": prompt_topics,
-            "entities": [pd.human_author or commit.author_name, agent_str] + affected_files[:5],
-            "namespace": namespace,
-            "user_id": user_id or commit.author_email,
-            "session_id": f"git-{commit.sha[:12]}",
-        })
+        memories.append(
+            {
+                "id": pid,  # Use original git-ai prompt_id so attribution can link to AMS prompt
+                "text": prompt_prefix + "\n".join(prompt_text_parts),
+                "memory_type": "semantic",
+                "topics": prompt_topics,
+                "entities": [pd.human_author or commit.author_name, agent_str] + affected_files[:5],
+                "namespace": namespace,
+                "user_id": user_id or commit.author_email,
+                "session_id": f"git-{commit.sha[:12]}",
+            }
+        )
         idx += 1
 
     return memories
@@ -457,16 +497,18 @@ def format_commit_without_ai(
     entities = [commit.author_name]
     entities.extend(tech_entities)
 
-    return [{
-        "id": _memory_id(commit.sha, 0),
-        "text": "\n".join(text_parts),
-        "memory_type": "episodic",
-        "topics": subject_topics if subject_topics else ["code-change"],
-        "entities": entities,
-        "namespace": namespace,
-        "user_id": user_id or commit.author_email,
-        "session_id": f"git-{commit.sha[:12]}",
-    }]
+    return [
+        {
+            "id": _memory_id(commit.sha, 0),
+            "text": "\n".join(text_parts),
+            "memory_type": "episodic",
+            "topics": subject_topics if subject_topics else ["code-change"],
+            "entities": entities,
+            "namespace": namespace,
+            "user_id": user_id or commit.author_email,
+            "session_id": f"git-{commit.sha[:12]}",
+        }
+    ]
 
 
 COMMIT_SUMMARY_SYSTEM_PROMPT = """\
@@ -498,14 +540,14 @@ def generate_commit_summary(
     timeout: float = 30.0,
 ) -> dict | None:
     """Generate an LLM-powered summary for a commit.
-    
+
     Returns a memory dict ready to be stored in AMS, or None if summarization fails.
     Non-blocking: failures are logged but don't raise exceptions.
     """
     try:
         file_diffs = get_per_file_diffs(commit.sha)
         diff_stat = get_commit_diff(commit.sha)
-        
+
         agents: set[str] = set()
         prompt_texts: list[str] = []
         for pd in commit.prompts.values():
@@ -518,24 +560,21 @@ def generate_commit_summary(
                     if m.get("role") == "user":
                         content = m.get("content", "")
                         if isinstance(content, list):
-                            content = " ".join(
-                                c.get("text", "") if isinstance(c, dict) else str(c)
-                                for c in content
-                            )
+                            content = " ".join(c.get("text", "") if isinstance(c, dict) else str(c) for c in content)
                         if content:
                             prompt_texts.append(content[:500])
                             break
-        
+
         context_parts = []
         context_parts.append(f"Commit: {commit.subject}")
         if commit.body:
             context_parts.append(f"Description: {commit.body[:500]}")
         context_parts.append(f"Author: {commit.author_name}")
         context_parts.append(f"SHA: {commit.sha[:12]}")
-        
+
         if agents:
             context_parts.append(f"AI Agent(s) used: {', '.join(sorted(agents))}")
-        
+
         if commit.stats:
             s = commit.stats
             context_parts.append(f"AI contribution: {s.ai_additions} AI lines, {s.human_additions} human lines")
@@ -543,21 +582,21 @@ def generate_commit_summary(
                 context_parts.append(f"AI acceptance rate: {s.ai_accepted} lines accepted unchanged")
             if s.time_waiting_for_ai:
                 context_parts.append(f"Time waiting for AI: {s.time_waiting_for_ai:.0f}s")
-        
+
         if prompt_texts:
             context_parts.append("\nPrompts used:")
             for i, pt in enumerate(prompt_texts[:3], 1):
                 context_parts.append(f"{i}. {pt}")
-        
+
         filepaths = [f.filepath for f in commit.files]
         if filepaths:
             context_parts.append(f"\nFiles changed ({len(filepaths)}): {', '.join(filepaths[:10])}")
             if len(filepaths) > 10:
                 context_parts.append(f"... and {len(filepaths) - 10} more")
-        
+
         if diff_stat:
             context_parts.append(f"\nDiff summary: {diff_stat}")
-        
+
         if file_diffs:
             total_changes = sum(len(d) for d in file_diffs.values())
             if total_changes < 5000:
@@ -565,29 +604,29 @@ def generate_commit_summary(
                 for filepath, diff_content in list(file_diffs.items())[:3]:
                     context_parts.append(f"\n{filepath}:")
                     context_parts.append(diff_content[:1000])
-        
+
         context = "\n".join(context_parts)
-        
+
         summary_text = call_llm(
             COMMIT_SUMMARY_SYSTEM_PROMPT,
             context,
             max_tokens=500,
             timeout=timeout,
         )
-        
+
         if not summary_text or not summary_text.strip():
             return None
-        
+
         file_topics = _extract_topics_from_paths(commit.files)
         subject_topics = _extract_topics_from_subject(commit.subject)
         all_topics = sorted(set(file_topics + subject_topics + ["commit-summary"]))
-        
+
         all_diff_content = "\n".join(file_diffs.values())
         tech_entities = _extract_tech_entities_from_diff(all_diff_content)
         entities = [commit.author_name]
         entities.extend(tech_entities)
         entities.extend(filepaths[:10])
-        
+
         summary_id = hashlib.sha256(f"{commit.sha}:summary".encode()).hexdigest()[:24]
         return {
             "id": summary_id,
