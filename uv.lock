@@ -382,7 +382,7 @@ wheels = [
 
 [[package]]
 name = "devmemory"
-version = "0.1.17"
+version = "0.1.20"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },
@@ -403,7 +403,7 @@ dev = [
     { name = "twine" },
 ]
 sentry = [
-    { name = "httpx" },
+    { name = "requests" },
     { name = "sentry-sdk" },
 ]
 
@@ -411,11 +411,11 @@ sentry = [
 requires-dist = [
     { name = "build", marker = "extra == 'dev'", specifier = ">=1.2.2" },
     { name = "httpx", specifier = ">=0.27.0" },
-    { name = "httpx", marker = "extra == 'sentry'", specifier = ">=0.27.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5.0.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "redis", specifier = ">=5.0.0" },
+    { name = "requests", marker = "extra == 'sentry'", specifier = ">=2.31.0" },
     { name = "rich", specifier = ">=13.0.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6.0" },
     { name = "sentry-sdk", marker = "extra == 'sentry'", specifier = ">=1.40.0" },
