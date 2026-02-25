@@ -2,6 +2,7 @@ import typer
 from typing import Optional
 from devmemory.commands.config_cmd import app as config_app
 from devmemory.commands.add import run_add
+from devmemory.commands.attribution import attribution_app
 from devmemory.commands.context import run_context
 from devmemory.commands.install import run_install
 from devmemory.commands.learn import run_learn
@@ -20,6 +21,7 @@ app = typer.Typer(
 )
 
 app.add_typer(config_app, name="config", help="Manage devmemory configuration.")
+app.add_typer(attribution_app, name="attribution", help="Manage AI attribution in Redis.")
 
 
 @app.command()
@@ -116,7 +118,17 @@ def stats(
     Use --by-repo for per-repository breakdown.
     Use --top-repos N to show top N active repos.
     """
-    run_stats(team=team, all_repos=all_repos, by_repo=by_repo, top_repos=top_repos, days=days, all_time=all_time, quiet=quiet, create_views=create_views, summarize=summarize)
+    run_stats(
+        team=team,
+        all_repos=all_repos,
+        by_repo=by_repo,
+        top_repos=top_repos,
+        days=days,
+        all_time=all_time,
+        quiet=quiet,
+        create_views=create_views,
+        summarize=summarize,
+    )
 
 
 @app.command()
