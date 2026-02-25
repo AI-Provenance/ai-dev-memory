@@ -213,7 +213,7 @@ def file_history(
     limit: int = typer.Option(20, "--limit", "-l", help="Number of commits to show"),
     namespace: str = typer.Option(None, "--namespace", "-n", help="Namespace"),
 ):
-    """Show commit history for a file's attributions."""
+    """Show all commits that have attribution data for a file."""
     ns = namespace or _get_namespace()
 
     try:
@@ -224,36 +224,61 @@ def file_history(
         raise typer.Exit(1)
 
     try:
-        history = storage.get_file_history(ns, filepath, limit)
+        # Get all attribution keys for this file
+        pattern = f"attr:{ns}:{filepath}:*"
+        all_keys = storage.redis.keys(pattern)
 
-        if not history:
-            console.print(f"[yellow]No history found for {filepath}[/yellow]")
+        if not all_keys:
+            console.print(f"[yellow]No attribution data found for {filepath}[/yellow]")
             raise typer.Exit(0)
+
+        # Extract commit SHAs and get range counts
+        commits = []
+        import json
+
+        for key in all_keys:
+            commit_sha = key.split(":")[-1]
+            ranges = storage.redis.hgetall(key)
+            range_count = len([k for k in ranges.keys() if k != "_meta"])
+
+            # Try to get timestamp from history, otherwise use "unknown"
+            history_key = storage._history_key(ns, filepath)
+            timestamp = storage.redis.zscore(history_key, commit_sha)
+
+            commits.append(
+                {
+                    "commit_sha": commit_sha,
+                    "timestamp": int(timestamp) if timestamp else None,
+                    "ranges": range_count,
+                }
+            )
+
+        # Sort by timestamp (newest first), None timestamps go to end
+        commits.sort(key=lambda x: x["timestamp"] if x["timestamp"] else 0, reverse=True)
+        commits = commits[:limit]
 
         console.print(f"\n[bold]File:[/bold] {filepath}")
         console.print(f"[bold]Namespace:[/bold] {ns}")
         console.print()
 
-        table = Table(title=f"Attribution History ({len(history)} commits)")
+        table = Table(title=f"Attribution History ({len(commits)} commits)")
         table.add_column("Commit", style="yellow")
         table.add_column("Date", style="cyan")
-        table.add_column("Ranges", style="green")
+        table.add_column("AI Blocks", style="green")
 
-        import json
         from datetime import datetime
 
-        for entry in history:
+        for entry in commits:
             commit_sha = entry["commit_sha"]
             timestamp = entry["timestamp"]
-
-            # Get ranges for this commit
-            attr_key = f"attr:{ns}:{filepath}:{commit_sha}"
-            ranges = storage.redis.hgetall(attr_key)
-            range_count = len([k for k in ranges.keys() if k != "_meta"])
+            range_count = entry["ranges"]
 
             # Format date
-            dt = datetime.fromtimestamp(timestamp)
-            date_str = dt.strftime("%Y-%m-%d %H:%M")
+            if timestamp:
+                dt = datetime.fromtimestamp(timestamp)
+                date_str = dt.strftime("%Y-%m-%d %H:%M")
+            else:
+                date_str = "unknown"
 
             table.add_row(commit_sha[:8], date_str, str(range_count))
 
