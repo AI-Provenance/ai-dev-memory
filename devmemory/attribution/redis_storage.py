@@ -142,7 +142,11 @@ class AttributionStorage:
 
         for range_str in range_keys:
             try:
-                start, end = map(int, range_str.split("-"))
+                parts = range_str.split("-")
+                if len(parts) == 1:
+                    start = end = int(parts[0])
+                else:
+                    start, end = map(int, parts)
                 if start <= lineno <= end:
                     attr = json.loads(ranges[range_str])
                     log.debug(f"Found attribution for {filepath}:{lineno} -> {attr.get('author')}")
@@ -181,6 +185,7 @@ class AttributionStorage:
         if latest_commit:
             attr = self.get_attribution(namespace, filepath, latest_commit, lineno)
             if attr and attr.get("author") != "human":
+                attr["commit_sha"] = latest_commit
                 return attr
 
         # Fallback: Check history (last N commits)
@@ -191,9 +196,24 @@ class AttributionStorage:
             attr = self.get_attribution(namespace, filepath, commit_sha, lineno)
             if attr and attr.get("author") != "human":
                 log.debug(f"Found attribution in history: {filepath}:{lineno} @ {commit_sha[:8]}")
+                attr["commit_sha"] = commit_sha
                 return attr
 
-        log.debug(f"No attribution found for {filepath}:{lineno} in latest or history")
+        # Final fallback: Scan all attribution keys for this file (in case history is incomplete)
+        pattern = f"attr:{namespace}:{filepath}:*"
+        all_keys = self.redis.keys(pattern)
+
+        for key in all_keys:
+            commit_sha = key.split(":")[-1]
+            if commit_sha == latest_commit:
+                continue  # Already checked
+            attr = self.get_attribution(namespace, filepath, commit_sha, lineno)
+            if attr and attr.get("author") != "human":
+                log.debug(f"Found attribution in all keys: {filepath}:{lineno} @ {commit_sha[:8]}")
+                attr["commit_sha"] = commit_sha
+                return attr
+
+        log.debug(f"No attribution found for {filepath}:{lineno}")
         return None
 
     def get_file_history(
