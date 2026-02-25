@@ -190,10 +190,13 @@ def create_before_send(
                 event["tags"]["ai_confidence"] = attribution.get("confidence", 0)
                 if attribution.get("prompt_id"):
                     event["tags"]["ai_prompt_id"] = attribution.get("prompt_id")
+                if attribution.get("author_email"):
+                    event["tags"]["ai_author_email"] = attribution.get("author_email")
 
                 event["contexts"] = event.get("contexts", {})
                 event["contexts"]["ai_attribution"] = {
                     "author": author if author else "unknown",
+                    "author_email": attribution.get("author_email"),
                     "tool": attribution.get("tool"),
                     "model": attribution.get("model"),
                     "prompt_id": attribution.get("prompt_id"),
