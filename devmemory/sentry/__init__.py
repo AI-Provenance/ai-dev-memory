@@ -8,13 +8,13 @@ Usage:
 
     Sentry.init({
         "dsn": "...",
-        "release": os.environ["APP_VERSION"],  # Must be commit SHA!
         "before_send": create_before_send()
     })
 
 In production:
     - DEVMEMORY_AMS_URL must be set (e.g., https://ams.internal)
     - repo_id is auto-detected from devmemory config if available, otherwise from DEVMEMORY_REPO_ID
+    - NO release configuration needed!
 
 Installation:
     pip install devmemory[sentry]
@@ -81,29 +81,6 @@ def _get_ams_url() -> str:
     In production, this MUST be set via DEVMEMORY_AMS_URL env var.
     """
     return os.environ.get("DEVMEMORY_AMS_URL", "")
-
-
-def _get_current_commit_sha() -> Optional[str]:
-    """
-    Get current commit SHA from git.
-
-    This is used as fallback when no release is set in Sentry event.
-    Works in local development and if git is available in container.
-    """
-    try:
-        import subprocess
-
-        result = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            return result.stdout.strip()
-    except Exception:
-        pass
-    return None
 
 
 class DevMemoryOptions:
@@ -175,15 +152,11 @@ def create_before_send(
         return None
 
     def before_send(event: Event, hint: Hint) -> Event:
-        """Sentry before_send hook to add AI attribution."""
-        release = event.get("release")
+        """
+        Sentry before_send hook to add AI attribution.
 
-        # If no release is set, try to get commit SHA from git
-        if not release:
-            release = _get_current_commit_sha()
-            if not release:
-                return event  # No way to identify the code version
-
+        Note: No release needed! API uses latest attribution for the file.
+        """
         try:
             frame = _extract_first_in_app_frame(event)
             if not frame:
@@ -198,7 +171,6 @@ def create_before_send(
             attribution = _lookup_attribution_sync(
                 ams_url=options.ams_url,
                 repo_id=options.repo_id,
-                release=release,
                 filepath=filepath,
                 lineno=lineno,
                 timeout=options.timeout,
@@ -262,7 +234,6 @@ def _extract_first_in_app_frame(event: Event) -> Optional[dict]:
 def _lookup_attribution_sync(
     ams_url: str,
     repo_id: str,
-    release: str,
     filepath: str,
     lineno: int,
     timeout: float,
@@ -279,7 +250,6 @@ def _lookup_attribution_sync(
         response = requests.post(
             url,
             json={
-                "release": release,
                 "repo_id": repo_id,
                 "filepath": filepath,
                 "lineno": lineno,
