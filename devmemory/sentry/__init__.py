@@ -1,7 +1,11 @@
 """
 DevMemory Sentry Processor
 
-Enriches Sentry events with AI attribution data from DevMemory Redis.
+Enriches Sentry events with AI attribution data from DevMemory storage.
+
+Supports two modes:
+- Local mode: Reads from local SQLite database
+- Cloud mode: Calls AMS API for attribution data
 
 Usage:
     from devmemory.sentry import create_before_send
@@ -12,9 +16,9 @@ Usage:
     })
 
 In production:
-    - DEVMEMORY_AMS_URL must be set (e.g., https://ams.internal)
+    - Local mode: Set DEVMEMORY_MODE=local and ensure SQLite DB exists
+    - Cloud mode: Set DEVMEMORY_AMS_URL (e.g., https://ams.internal)
     - repo_id is auto-detected from devmemory config if available, otherwise from DEVMEMORY_REPO_ID
-    - NO release configuration needed!
 
 Installation:
     pip install devmemory[sentry]
@@ -23,7 +27,12 @@ Installation:
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Any, Callable, Optional
+
+from devmemory.core.logging_config import get_logger
+
+log = get_logger(__name__)
 
 # Type aliases for the callback
 Event = dict[str, Any]
@@ -74,6 +83,58 @@ def _get_repo_id() -> str:
     return ""
 
 
+def _get_mode() -> str:
+    """Get the installation mode: 'local' or 'cloud'."""
+    # Check environment variable first
+    mode = os.environ.get("DEVMEMORY_MODE", "").lower()
+    if mode in ("local", "cloud"):
+        return mode
+
+    # Try to get from config
+    try:
+        from devmemory.core.config import DevMemoryConfig
+
+        config = DevMemoryConfig.load()
+        if config.installation_mode:
+            return config.installation_mode
+    except Exception:
+        pass
+
+    # Default to cloud mode
+    return "cloud"
+
+
+def _get_sqlite_path() -> str:
+    """Get the SQLite database path for local mode."""
+    # Check environment variable first
+    sqlite_path = os.environ.get("DEVMEMORY_SQLITE_PATH", "")
+    if sqlite_path:
+        return sqlite_path
+
+    # Try to get from config
+    try:
+        from devmemory.core.config import DevMemoryConfig
+
+        config = DevMemoryConfig.load()
+        if config.sqlite_path:
+            return config.sqlite_path
+        # Get default path from config
+        if config.get_sqlite_path():
+            return config.get_sqlite_path()
+    except Exception:
+        pass
+
+    # Try to find .devmemory in current directory or parent
+    cwd = Path.cwd()
+    for path in [cwd] + list(cwd.parents):
+        devmemory_dir = path / ".devmemory"
+        if devmemory_dir.exists():
+            return str(devmemory_dir / "attributions.db")
+
+    # Default path
+    return ".devmemory/attributions.db"
+
+
 def _get_ams_url() -> str:
     """
     Get AMS URL from environment variable.
@@ -91,40 +152,67 @@ class DevMemoryOptions:
         ams_url: Optional[str] = None,
         repo_id: Optional[str] = None,
         timeout: float = 2.0,
+        mode: Optional[str] = None,
+        sqlite_path: Optional[str] = None,
     ):
         """
         Initialize options.
 
         Args:
-            ams_url: URL of the attribution API. Required - set via DEVMEMORY_AMS_URL env var.
+            ams_url: URL of the attribution API. Required for cloud mode.
             repo_id: Repository identifier. Auto-detected if not provided.
             timeout: Request timeout in seconds.
+            mode: "local" or "cloud". Auto-detected if not provided.
+            sqlite_path: Path to SQLite database for local mode.
         """
+        self.mode = mode or _get_mode()
         self.ams_url = ams_url or _get_ams_url()
         self.repo_id = repo_id or _get_repo_id()
         self.timeout = timeout
+        self.sqlite_path = sqlite_path or _get_sqlite_path()
 
     def validate(self) -> bool:
         """Check if configuration is valid."""
-        if not self.ams_url:
-            return False
-        if not self.repo_id:
-            return False
+        if self.mode == "cloud":
+            if not self.ams_url:
+                log.warning("DevMemory Sentry: Cloud mode requires AMS_URL")
+                return False
+            if not self.repo_id:
+                log.warning("DevMemory Sentry: repo_id is required")
+                return False
+        elif self.mode == "local":
+            if not self.repo_id:
+                log.warning("DevMemory Sentry: repo_id is required for local mode")
+                return False
+            # SQLite path is optional, will use default if not found
         return True
+
+    def get_storage_info(self) -> dict:
+        """Get storage information for debugging."""
+        return {
+            "mode": self.mode,
+            "ams_url": self.ams_url,
+            "repo_id": self.repo_id,
+            "sqlite_path": self.sqlite_path if self.mode == "local" else None,
+        }
 
 
 def create_before_send(
     ams_url: Optional[str] = None,
     repo_id: Optional[str] = None,
     timeout: float = 2.0,
+    mode: Optional[str] = None,
+    sqlite_path: Optional[str] = None,
 ) -> Optional[BeforeSend]:
     """
     Create a Sentry before_send hook that enriches events with AI attribution.
 
     Args:
-        ams_url: URL of the DevMemory AMS API (or attribution endpoint)
-        repo_id: Repository identifier (maps to Redis namespace)
+        ams_url: URL of the DevMemory AMS API (cloud mode)
+        repo_id: Repository identifier (maps to namespace)
         timeout: Request timeout in seconds (default: 2s)
+        mode: "local" or "cloud". Auto-detected if not provided.
+        sqlite_path: Path to SQLite database (local mode)
 
     Returns:
         A before_send function for Sentry.init(), or None if not configured
@@ -133,12 +221,23 @@ def create_before_send(
         from sentry_sdk import init
         from devmemory.sentry import create_before_send
 
+        # Local mode (default if DEVMEMORY_MODE=local)
         init(
             dsn=os.environ["SENTRY_DSN"],
-            release=os.environ["APP_VERSION"],  # Commit SHA!
+            before_send=create_before_send(
+                repo_id="my-repo",
+                mode="local",
+                sqlite_path="/path/to/attributions.db"
+            )
+        )
+
+        # Cloud mode
+        init(
+            dsn=os.environ["SENTRY_DSN"],
             before_send=create_before_send(
                 ams_url="https://ams.internal",
-                repo_id="payments-service"
+                repo_id="my-repo",
+                mode="cloud"
             )
         )
     """
@@ -146,16 +245,35 @@ def create_before_send(
         ams_url=ams_url,
         repo_id=repo_id,
         timeout=timeout,
+        mode=mode,
+        sqlite_path=sqlite_path,
     )
 
     if not options.validate():
+        log.warning(f"DevMemory Sentry: Invalid configuration: {options.get_storage_info()}")
         return None
+
+    log.info(f"DevMemory Sentry initialized: {options.get_storage_info()}")
+
+    # Pre-create storage for local mode
+    local_storage = None
+    if options.mode == "local":
+        try:
+            from devmemory.attribution.sqlite_storage import SQLiteAttributionStorage
+
+            local_storage = SQLiteAttributionStorage(options.sqlite_path)
+            # Test connection (sync)
+            local_storage._get_conn()
+            log.info(f"DevMemory Sentry: Connected to SQLite at {options.sqlite_path}")
+        except Exception as e:
+            log.warning(f"DevMemory Sentry: Failed to connect to SQLite: {e}")
+            local_storage = None
 
     def before_send(event: Event, hint: Hint) -> Event:
         """
         Sentry before_send hook to add AI attribution.
 
-        Note: No release needed! API uses latest attribution for the file.
+        Note: No release needed! Uses latest attribution for the file.
         """
         try:
             frame = _extract_first_in_app_frame(event)
@@ -168,19 +286,28 @@ def create_before_send(
             if not filepath or not lineno:
                 return event
 
-            attribution = _lookup_attribution_sync(
-                ams_url=options.ams_url,
-                repo_id=options.repo_id,
-                filepath=filepath,
-                lineno=lineno,
-                timeout=options.timeout,
-            )
+            # Route to appropriate lookup based on mode
+            if options.mode == "local":
+                attribution = _lookup_from_sqlite(
+                    storage=local_storage,
+                    repo_id=options.repo_id,
+                    filepath=filepath,
+                    lineno=lineno,
+                )
+            else:
+                attribution = _lookup_from_api(
+                    ams_url=options.ams_url,
+                    repo_id=options.repo_id,
+                    filepath=filepath,
+                    lineno=lineno,
+                    timeout=options.timeout,
+                )
 
             # Only tag if we have attribution data
             if attribution and attribution.get("author"):
                 author = attribution.get("author")
 
-                # If author is "human" from API, it means we looked but found no AI
+                # If author is "human" from storage, it means we looked but found no AI
                 # Keep it as human (known to be written by human)
                 # If no attribution at all, author will be empty/None
 
@@ -204,6 +331,7 @@ def create_before_send(
                     "commit_sha": attribution.get("commit_sha"),
                     "filepath": filepath,
                     "lineno": lineno,
+                    "mode": options.mode,
                 }
 
         except Exception:
@@ -237,7 +365,31 @@ def _extract_first_in_app_frame(event: Event) -> Optional[dict]:
     return None
 
 
-def _lookup_attribution_sync(
+def _lookup_from_sqlite(
+    storage,
+    repo_id: str,
+    filepath: str,
+    lineno: int,
+) -> Optional[dict]:
+    """Look up attribution from local SQLite database."""
+    if not storage:
+        return None
+
+    try:
+        # Sync lookup
+        result = storage.get_latest_attribution(
+            namespace=repo_id,
+            filepath=filepath,
+            lineno=lineno,
+        )
+
+        return result
+    except Exception as e:
+        log.debug(f"SQLite lookup failed: {e}")
+        return None
+
+
+def _lookup_from_api(
     ams_url: str,
     repo_id: str,
     filepath: str,

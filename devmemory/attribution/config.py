@@ -37,6 +37,8 @@ class AttributionConfig:
     """Configuration for attribution storage."""
 
     redis_url: str
+    is_local_mode: bool = False
+    sqlite_path: str = ""
 
     @classmethod
     def load(cls) -> AttributionConfig:
@@ -89,7 +91,12 @@ class AttributionConfig:
             redis_url = "redis://localhost:6379"
 
         log.debug(f"AttributionConfig: redis_url={_mask_password(redis_url)}")
-        return cls(redis_url=redis_url)
+
+        # Check for local mode configuration
+        is_local_mode = os.environ.get("DEVMEMORY_MODE", "").lower() == "local"
+        sqlite_path = os.environ.get("DEVMEMORY_SQLITE_PATH", "")
+
+        return cls(redis_url=redis_url, is_local_mode=is_local_mode, sqlite_path=sqlite_path)
 
 
 def _mask_password(url: str) -> str:

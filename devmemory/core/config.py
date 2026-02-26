@@ -19,6 +19,8 @@ DEFAULTS = {
     "namespace": "default",
     "user_id": "",
     "auto_summarize": False,
+    "installation_mode": "cloud",  # "local" or "cloud"
+    "sqlite_path": "",  # Path to SQLite database (local mode)
 }
 
 
@@ -29,6 +31,8 @@ class DevMemoryConfig:
     namespace: str = DEFAULTS["namespace"]
     user_id: str = DEFAULTS["user_id"]
     auto_summarize: bool = DEFAULTS["auto_summarize"]
+    installation_mode: str = DEFAULTS["installation_mode"]  # "local" or "cloud"
+    sqlite_path: str = DEFAULTS["sqlite_path"]  # Path to SQLite DB (local mode)
 
     @staticmethod
     def get_auth_token() -> str:
@@ -103,3 +107,21 @@ class DevMemoryConfig:
         if repo_id == "non-git":
             return self.namespace
         return f"{self.namespace}:{repo_id}"
+
+    def is_local_mode(self) -> bool:
+        """Check if running in local mode (SQLite only)."""
+        return self.installation_mode == "local"
+
+    def is_cloud_mode(self) -> bool:
+        """Check if running in cloud mode (Redis + AMS)."""
+        return self.installation_mode == "cloud"
+
+    def get_sqlite_path(self) -> str:
+        """Get the SQLite database path for local mode."""
+        if self.sqlite_path:
+            return self.sqlite_path
+        # Default to .devmemory/attributions.db in repo root
+        repo_root = get_repo_root()
+        if repo_root:
+            return str(Path(repo_root) / ".devmemory" / "attributions.db")
+        return ""
