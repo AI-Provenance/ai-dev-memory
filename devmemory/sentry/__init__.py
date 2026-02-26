@@ -314,6 +314,7 @@ def create_before_send(
                 event["tags"] = event.get("tags", {})
                 event["tags"]["ai_origin"] = author if author else "unknown"
                 event["tags"]["ai_tool"] = attribution.get("tool") or "unknown"
+                event["tags"]["ai_model"] = attribution.get("model") or "unknown"
                 event["tags"]["ai_confidence"] = attribution.get("confidence", 0)
                 if attribution.get("prompt_id"):
                     event["tags"]["ai_prompt_id"] = attribution.get("prompt_id")
