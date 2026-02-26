@@ -4,14 +4,29 @@ from rich.table import Table
 from rich.syntax import Syntax
 
 from devmemory.attribution.config import AttributionConfig
-from devmemory.attribution.redis_storage import AttributionStorage
+from devmemory.attribution.redis_storage import AttributionStorage as RedisAttributionStorage
+from devmemory.attribution.sqlite_storage import SQLiteAttributionStorage
 from devmemory.core.config import DevMemoryConfig
 from devmemory.core.logging_config import get_logger
 
 log = get_logger(__name__)
 console = Console()
 
-attribution_app = typer.Typer(name="attribution", help="Manage AI attribution data in Redis")
+attribution_app = typer.Typer(name="attribution", help="Manage AI attribution (local SQLite or cloud Redis)")
+
+
+def _get_storage():
+    """Get the appropriate attribution storage based on configuration."""
+    config = DevMemoryConfig.load()
+    attr_config = AttributionConfig.load()
+
+    if config.is_local_mode():
+        # Local mode: Use SQLite
+        sqlite_path = config.get_sqlite_path()
+        return SQLiteAttributionStorage(sqlite_path), "sqlite"
+    else:
+        # Cloud mode: Use Redis
+        return RedisAttributionStorage(attr_config.redis_url), "redis"
 
 
 def _get_namespace() -> str:
@@ -23,6 +38,13 @@ def _get_namespace() -> str:
         return "default"
 
 
+def _show_mode():
+    """Show the current mode in CLI output."""
+    config = DevMemoryConfig.load()
+    mode = config.installation_mode or "cloud"
+    console.print(f"[dim]Mode: {mode}[/dim]")
+
+
 @attribution_app.command("list")
 def list_attributions(
     namespace: str = typer.Option(
@@ -30,54 +52,80 @@ def list_attributions(
     ),
     limit: int = typer.Option(20, "--limit", "-l", help="Number of keys to show"),
 ):
-    """List stored attributions in Redis."""
+    """List stored attributions."""
     ns = namespace or _get_namespace()
 
     try:
-        config = AttributionConfig.load()
-        storage = AttributionStorage(config.redis_url)
+        storage, storage_type = _get_storage()
     except Exception as e:
-        console.print(f"[red]Failed to connect to Redis: {e}[/red]")
+        console.print(f"[red]Failed to connect to storage: {e}[/red]")
         raise typer.Exit(1)
 
     try:
-        pattern = f"attr:{ns}:*:*"
-        keys = storage.redis.keys(pattern)
+        if storage_type == "redis":
+            # Redis-specific listing
+            pattern = f"attr:{ns}:*:*"
+            keys = storage.redis.keys(pattern)
 
-        if not keys:
-            console.print(f"[yellow]No attributions found for namespace '{ns}'[/yellow]")
-            console.print(f"[dim]Hint: try --namespace default or run devmemory sync first[/dim]")
-            raise typer.Exit(0)
+            if not keys:
+                console.print(f"[yellow]No attributions found for namespace '{ns}'[/yellow]")
+                console.print(f"[dim]Hint: try --namespace default or run devmemory sync first[/dim]")
+                raise typer.Exit(0)
 
-        table = Table(title=f"Attributions in '{ns}' ({len(keys)} total)")
-        table.add_column("File", style="cyan")
-        table.add_column("Commit", style="yellow")
-        table.add_column("Ranges", style="green")
-        table.add_column("Author", style="magenta")
+            table = Table(title=f"Attributions in '{ns}' ({len(keys)} total)")
+            table.add_column("File", style="cyan")
+            table.add_column("Commit", style="yellow")
+            table.add_column("Ranges", style="green")
+            table.add_column("Author", style="magenta")
 
-        for key in keys[:limit]:
-            # Key format: attr:{namespace}:{filepath}:{commit_sha}
-            # namespace includes repo_id, so we need to find filepath and commit_sha
-            # by looking from the end
-            parts = key.split(":")
+            for key in keys[:limit]:
+                parts = key.split(":")
+                commit_sha = parts[-1]
+                filepath = parts[-2]
+                namespace_from_key = ":".join(parts[1:-2])
 
-            # Last part is commit_sha
-            commit_sha = parts[-1]
-            # Second to last is filepath
-            filepath = parts[-2]
-            # Everything else is namespace parts
-            namespace_from_key = ":".join(parts[1:-2])
+                ranges = storage.redis.hgetall(key)
+                range_count = len([k for k in ranges.keys() if k != "_meta"])
 
-            ranges = storage.redis.hgetall(key)
-            range_count = len([k for k in ranges.keys() if k != "_meta"])
+                ai_count = sum(1 for v in ranges.values() if "ai" in v)
+                author = "AI" if ai_count > 0 else "Human"
 
-            ai_count = sum(1 for v in ranges.values() if "ai" in v)
-            author = "AI" if ai_count > 0 else "Human"
+                table.add_row(filepath, commit_sha[:8], str(range_count), author)
 
-            table.add_row(filepath, commit_sha[:8], str(range_count), author)
+            console.print(table)
+            console.print(f"\n[dim]Showing {min(limit, len(keys))} of {len(keys)} keys[/dim]")
+        else:
+            # SQLite listing
+            conn = storage._get_conn()
+            cursor = conn.execute(
+                "SELECT DISTINCT filepath, commit_sha FROM attributions WHERE namespace = ? LIMIT ?", (ns, limit)
+            )
+            rows = cursor.fetchall()
 
-        console.print(table)
-        console.print(f"\n[dim]Showing {min(limit, len(keys))} of {len(keys)} keys[/dim]")
+            if not rows:
+                console.print(f"[yellow]No attributions found for namespace '{ns}'[/yellow]")
+                console.print(f"[dim]Hint: run devmemory sync first[/dim]")
+                raise typer.Exit(0)
+
+            table = Table(title=f"Attributions in '{ns}' ({len(rows)} files)")
+            table.add_column("File", style="cyan")
+            table.add_column("Commit", style="yellow")
+            table.add_column("Author", style="magenta")
+
+            for row in rows:
+                filepath, commit_sha = row
+                # Get author info
+                cursor = conn.execute(
+                    "SELECT author FROM attributions WHERE namespace = ? AND filepath = ? AND commit_sha = ? LIMIT 1",
+                    (ns, filepath, commit_sha),
+                )
+                author_row = cursor.fetchone()
+                author = author_row[0] if author_row else "unknown"
+
+                table.add_row(filepath, commit_sha[:8], author)
+
+            console.print(table)
+            console.print(f"\n[dim]Showing {len(rows)} files[/dim]")
 
     finally:
         storage.close()
@@ -93,61 +141,111 @@ def show_attribution(
     ns = namespace or _get_namespace()
 
     try:
-        config = AttributionConfig.load()
-        storage = AttributionStorage(config.redis_url)
+        storage, storage_type = _get_storage()
     except Exception as e:
-        console.print(f"[red]Failed to connect to Redis: {e}[/red]")
+        console.print(f"[red]Failed to connect to storage: {e}[/red]")
         raise typer.Exit(1)
 
     try:
-        if not commit_sha:
-            pattern = f"attr:{ns}:{filepath}:*"
-            keys = storage.redis.keys(pattern)
-            if not keys:
-                console.print(f"[red]No attribution found for {filepath}[/red]")
+        if storage_type == "redis":
+            # Redis implementation
+            if not commit_sha:
+                pattern = f"attr:{ns}:{filepath}:*"
+                keys = storage.redis.keys(pattern)
+                if not keys:
+                    console.print(f"[red]No attribution found for {filepath}[/red]")
+                    raise typer.Exit(1)
+                keys = sorted(keys)
+                commit_sha = keys[-1].split(":")[-1]
+                key = f"attr:{ns}:{filepath}:{commit_sha}"
+            else:
+                key = f"attr:{ns}:{filepath}:{commit_sha}"
+
+            data = storage.redis.hgetall(key)
+
+            if not data:
+                console.print(f"[red]No attribution found for {filepath}@{commit_sha[:8]}[/red]")
                 raise typer.Exit(1)
-            keys = sorted(keys)
-            commit_sha = keys[-1].split(":")[-1]
-            key = f"attr:{ns}:{filepath}:{commit_sha}"
+
+            console.print(f"\n[bold]File:[/bold] {filepath}")
+            console.print(f"[bold]Namespace:[/bold] {ns}")
+            console.print(f"[bold]Commit:[/bold] {commit_sha[:8]}")
+            console.print()
+
+            table = Table(title="Line Attribution")
+            table.add_column("Lines", style="cyan")
+            table.add_column("Author", style="yellow")
+            table.add_column("Tool", style="green")
+            table.add_column("Model", style="magenta")
+            table.add_column("Prompt ID", style="dim")
+
+            import json
+
+            for range_str, attr_json in sorted(data.items()):
+                if range_str == "_meta":
+                    continue
+                try:
+                    attr = json.loads(attr_json)
+                    table.add_row(
+                        range_str,
+                        attr.get("author", "unknown"),
+                        attr.get("tool", "-"),
+                        attr.get("model", "-"),
+                        (attr.get("prompt_id", "-")[:12] + "...") if attr.get("prompt_id") else "-",
+                    )
+                except json.JSONDecodeError:
+                    table.add_row(range_str, "[red]parse error[/red]", "-", "-", "-")
+
+            console.print(table)
         else:
-            key = f"attr:{ns}:{filepath}:{commit_sha}"
+            # SQLite implementation
+            conn = storage._get_conn()
 
-        data = storage.redis.hgetall(key)
-
-        if not data:
-            console.print(f"[red]No attribution found for {filepath}@{commit_sha[:8]}[/red]")
-            raise typer.Exit(1)
-
-        console.print(f"\n[bold]File:[/bold] {filepath}")
-        console.print(f"[bold]Namespace:[/bold] {ns}")
-        console.print(f"[bold]Commit:[/bold] {commit_sha[:8]}")
-        console.print()
-
-        table = Table(title="Line Attribution")
-        table.add_column("Lines", style="cyan")
-        table.add_column("Author", style="yellow")
-        table.add_column("Tool", style="green")
-        table.add_column("Model", style="magenta")
-        table.add_column("Prompt ID", style="dim")
-
-        import json
-
-        for range_str, attr_json in sorted(data.items()):
-            if range_str == "_meta":
-                continue
-            try:
-                attr = json.loads(attr_json)
-                table.add_row(
-                    range_str,
-                    attr.get("author", "unknown"),
-                    attr.get("tool", "-"),
-                    attr.get("model", "-"),
-                    (attr.get("prompt_id", "-")[:12] + "...") if attr.get("prompt_id") else "-",
+            if not commit_sha:
+                cursor = conn.execute(
+                    "SELECT commit_sha FROM file_latest WHERE namespace = ? AND filepath = ?", (ns, filepath)
                 )
-            except json.JSONDecodeError:
-                table.add_row(range_str, "[red]parse error[/red]", "-", "-", "-")
+                row = cursor.fetchone()
+                if not row:
+                    console.print(f"[red]No attribution found for {filepath}[/red]")
+                    raise typer.Exit(1)
+                commit_sha = row[0]
 
-        console.print(table)
+            cursor = conn.execute(
+                "SELECT line_start, line_end, author, tool, model, prompt_id FROM attributions WHERE namespace = ? AND filepath = ? AND commit_sha = ?",
+                (ns, filepath, commit_sha),
+            )
+            rows = cursor.fetchall()
+
+            if not rows:
+                console.print(f"[red]No attribution found for {filepath}@{commit_sha[:8]}[/red]")
+                raise typer.Exit(1)
+
+            console.print(f"\n[bold]File:[/bold] {filepath}")
+            console.print(f"[bold]Namespace:[/bold] {ns}")
+            console.print(f"[bold]Commit:[/bold] {commit_sha[:8]}")
+            console.print()
+
+            table = Table(title="Line Attribution")
+            table.add_column("Lines", style="cyan")
+            table.add_column("Author", style="yellow")
+            table.add_column("Tool", style="green")
+            table.add_column("Model", style="magenta")
+            table.add_column("Prompt ID", style="dim")
+
+            for row in rows:
+                line_start, line_end, author, tool, model, prompt_id = row
+                lines = f"{line_start}-{line_end}" if line_start != line_end else str(line_start)
+                prompt_display = (prompt_id[:12] + "...") if prompt_id else "-"
+                table.add_row(
+                    lines,
+                    author or "unknown",
+                    tool or "-",
+                    model or "-",
+                    prompt_display,
+                )
+
+            console.print(table)
 
     finally:
         storage.close()

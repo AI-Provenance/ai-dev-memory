@@ -1,5 +1,6 @@
 import typer
 from typing import Optional
+from devmemory import __version__
 from devmemory.commands.config_cmd import app as config_app
 from devmemory.commands.add import run_add
 from devmemory.commands.attribution import attribution_app
@@ -20,8 +21,32 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 
+
+@app.command()
+def version(
+    short: bool = typer.Option(False, "--short", help="Show just the version number"),
+):
+    """Show the devmemory version."""
+    from rich.console import Console
+
+    console = Console()
+    if short:
+        console.print(__version__)
+    else:
+        console.print(f"[bold]devmemory[/bold] version [cyan]{__version__}[/cyan]")
+
+
+@app.command()
+def version():
+    """Show the devmemory version."""
+    from rich.console import Console
+
+    console = Console()
+    console.print(f"[bold]devmemory[/bold] version [cyan]{__version__}[/cyan]")
+
+
 app.add_typer(config_app, name="config", help="Manage devmemory configuration.")
-app.add_typer(attribution_app, name="attribution", help="Manage AI attribution in Redis.")
+app.add_typer(attribution_app, name="attribution", help="Manage AI attribution (local SQLite or cloud Redis).")
 
 
 @app.command()
@@ -200,6 +225,10 @@ def install(
     skip_opencode: bool = typer.Option(False, "--skip-opencode", help="Skip OpenCode MCP config."),
     skip_rule: bool = typer.Option(False, "--skip-rule", help="Skip Cursor agent rule installation."),
     mcp_endpoint: str = typer.Option("", "--mcp-endpoint", help="Override MCP server endpoint."),
+    interactive: bool = typer.Option(
+        False, "--interactive", "-i", help="Interactive mode to select installation mode (local/cloud)."
+    ),
+    force_mode: str = typer.Option("", "--mode", help="Force installation mode: 'local' or 'cloud'."),
 ):
     """Set up Git hooks, MCP configs, and agent coordination rules."""
     run_install(
@@ -209,6 +238,8 @@ def install(
         skip_opencode=skip_opencode,
         skip_rule=skip_rule,
         mcp_endpoint=mcp_endpoint,
+        interactive=interactive,
+        force_mode=force_mode,
     )
 
 

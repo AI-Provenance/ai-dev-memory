@@ -19,7 +19,9 @@ from devmemory.core.memory_formatter import (
 from devmemory.core.ams_client import AMSClient
 from devmemory.core.memory_formatter import generate_commit_summary
 from devmemory.core.logging_config import get_logger
-from devmemory.attribution import AttributionStorage, AttributionConfig
+from devmemory.attribution import AttributionConfig
+from devmemory.attribution.redis_storage import AttributionStorage as RedisAttributionStorage
+from devmemory.attribution.sqlite_storage import SQLiteAttributionStorage
 from datetime import datetime, timezone
 
 log = get_logger(__name__)
@@ -340,20 +342,47 @@ def run_sync(
             console.print("[dim]Is the Docker stack running? Try: make up[/dim]")
         raise typer.Exit(1)
 
-    # Check Redis connectivity for attribution (non-blocking warning)
-    redis_available = True
+    # Check attribution storage connectivity (non-blocking warning)
     attr_config = None
+    storage_mode = "none"
+    attr_storage = None
+
     try:
+        config = DevMemoryConfig.load()
         attr_config = AttributionConfig.load()
-        attr_storage = AttributionStorage(attr_config.redis_url)
-        attr_storage.redis.ping()
-        attr_storage.close()
+
+        if config.is_local_mode():
+            # Local mode: Use SQLite
+            sqlite_path = config.get_sqlite_path()
+            try:
+                attr_storage = SQLiteAttributionStorage(sqlite_path)
+                # Test connection (sync)
+                attr_storage._get_conn()
+                storage_mode = "sqlite"
+                if not quiet:
+                    console.print(f"[dim]Using SQLite for attribution: {sqlite_path}[/dim]")
+            except Exception as e:
+                storage_mode = "none"
+                if not quiet:
+                    console.print(f"[yellow]⚠ SQLite unreachable - attribution storage disabled[/yellow]")
+                    console.print(f"[dim]  Path: {sqlite_path}[/dim]")
+        else:
+            # Cloud mode: Use Redis
+            try:
+                attr_storage = RedisAttributionStorage(attr_config.redis_url)
+                attr_storage.redis.ping()
+                storage_mode = "redis"
+            except Exception as e:
+                storage_mode = "none"
+                if not quiet:
+                    console.print(f"[yellow]⚠ Redis unreachable - attribution storage disabled[/yellow]")
+                    if attr_config:
+                        console.print(f"[dim]  Endpoint: {attr_config.redis_url}[/dim]")
+
     except Exception as e:
-        redis_available = False
+        storage_mode = "none"
         if not quiet:
-            console.print(f"[yellow]⚠ Redis unreachable - attribution storage disabled[/yellow]")
-            if attr_config:
-                console.print(f"[dim]  Endpoint: {attr_config.redis_url}[/dim]")
+            console.print(f"[yellow]⚠ Attribution storage check failed: {e}[/yellow]")
 
     if not quiet:
         console.print(f"[bold]Syncing {len(notes_to_sync)} commit(s)...[/bold]")
@@ -456,12 +485,9 @@ def run_sync(
             if not quiet:
                 console.print(f"[yellow]⚠ Stats storage failed (non-blocking): {e}[/yellow]")
 
-    # Store line-level attribution in Redis for production bug attribution
-    if notes_to_sync and redis_available and attr_config:
+    # Store line-level attribution for production bug attribution
+    if notes_to_sync and storage_mode != "none" and attr_storage:
         try:
-            attr_config = AttributionConfig.load()
-            attr_storage = AttributionStorage(attr_config.redis_url)
-
             stored_count = 0
             for note in notes_to_sync:
                 if not note.has_ai_note:
@@ -507,7 +533,10 @@ def run_sync(
             attr_storage.close()
 
             if stored_count > 0 and not quiet:
-                console.print(f"[green]✓ Stored line attribution for {stored_count} file(s) in Redis[/green]")
+                if storage_mode == "sqlite":
+                    console.print(f"[green]✓ Stored line attribution for {stored_count} file(s) in SQLite[/green]")
+                else:
+                    console.print(f"[green]✓ Stored line attribution for {stored_count} file(s) in Redis[/green]")
             log.debug(f"run_sync: stored attribution for {stored_count} files")
 
         except Exception as e:
