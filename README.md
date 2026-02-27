@@ -4,18 +4,23 @@
 [![PyPI](https://img.shields.io/pypi/v/devmemory.svg)](https://pypi.org/project/devmemory/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-DevMemory is a long‑term memory for AI coding agents that can explain why any file or function looks the way it does and let agents reuse that understanding across sessions without re-reading the whole repo.
-
-Built on [Git AI](https://github.com/git-ai-project/git-ai) for capture and [Redis Agent Memory Server](https://github.com/redis/agent-memory-server) for semantic search and recall.
-
-> For local mode we use [sqlite](https://github.com/sqlite/sqlite)
-
-> Status: currently in Beta.
-
-
 **AI code attribution that answers "why?" — for developers and AI agents.**
 
 DevMemory tracks which AI tool wrote which line of code, then makes that knowledge searchable. Ask "why did we use this pattern?" and get answers backed by commits, prompts, and context.
+
+---
+
+## Quick Install
+
+```bash
+# One-line install (local mode)
+curl -sSL https://raw.githubusercontent.com/AI-Provenance/ai-dev-memory/main/scripts/install-simple.sh | bash
+```
+
+Then in your project:
+```bash
+devmemory install --mode local
+```
 
 ---
 
@@ -44,10 +49,11 @@ devmemory attribution lookup path/to/file.py  # See who wrote what
 - `devmemory attribution` commands
 - Sentry error tracking with AI attributions
 
-### Sentry Integration (Local Mode)
+### Sentry Integration
 
 When an error hits Sentry, see which AI tool and model wrote the code that caused it.
 
+**Python:**
 ```python
 import sentry_sdk
 from devmemory.sentry import create_before_send
@@ -58,7 +64,26 @@ sentry_sdk.init(
 )
 ```
 
-This adds `ai_model`, `ai_tool`, `author`, `commit_sha`, and other tags and context to every Sentry event from your app.
+**Node.js / Next.js:**
+```bash
+npm install @devmemory/sentry
+```
+
+```javascript
+import { createDevMemoryBeforeSend } from "@devmemory/sentry";
+
+Sentry.init({
+  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+  beforeSend(event, hint) {
+    return createDevMemoryBeforeSend({
+      repoId: "my-app",
+      mode: "local",
+    })(event, hint);
+  },
+});
+```
+
+This adds `ai_model`, `ai_tool`, `author`, `commit_sha`, and other tags to every Sentry event.
 
 ---
 
