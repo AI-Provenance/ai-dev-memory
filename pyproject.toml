@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "devmemory"
-version = "0.1.27"
+version = "0.1.28"
 description = "Sync AI coding context from Git AI to Redis Agent Memory Server for semantic search and recall."
 readme = "README.md"
 license = "MIT"
@@ -39,8 +39,8 @@ dependencies = [
 devmemory = "devmemory.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/devmemory/devmemory"
-Repository = "https://github.com/devmemory/devmemory"
+Homepage = "https://aiprove.org"
+Repository = "https://github.com/AI-Provenance/ai-dev-memory"
 
 [project.optional-dependencies]
 dev = [
