@@ -433,16 +433,16 @@ def run_install(
 
         # Show Sentry setup instructions
         console.print("\n[bold]Sentry Setup (Local Mode):[/bold]")
-        console.print("  Add to your Sentry initialization:")
-        console.print(f"""  [dim]# Set mode to local
-DEVMEMORY_MODE=local
-DEVMEMORY_SQLITE_PATH={sqlite_path}
-DEVMEMORY_REPO_ID={config.get_active_namespace()}
-
-# In your code:
-from devmemory.sentry import create_before_send
+        console.print("  Add this to your Sentry initialization:")
+        console.print("""  [dim]
 import sentry_sdk
-sentry_sdk.init(..., before_send=create_before_send())[/dim]""")
+from devmemory.sentry import create_before_send
+                      
+sentry_sdk.init(
+    dsn="YOUR_SENTRY_DSN",
+    before_send=create_before_send(),
+    ...
+)[/dim]""")
 
     else:
         # Cloud mode: Full installation (existing behavior)
