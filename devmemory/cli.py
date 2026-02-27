@@ -1,6 +1,7 @@
 import typer
 from typing import Optional
 from devmemory import __version__
+from devmemory.core.config import DevMemoryConfig
 from devmemory.commands.config_cmd import app as config_app
 from devmemory.commands.add import run_add
 from devmemory.commands.attribution import attribution_app
@@ -17,9 +18,18 @@ from devmemory.commands.summarize import run_summarize, run_generate_architectur
 
 app = typer.Typer(
     name="devmemory",
-    help="Sync AI coding context from Git AI to Redis Agent Memory Server for semantic search and recall.",
+    help="DevMemory - AI coding context sync and attribution.",
     no_args_is_help=True,
 )
+
+
+def _get_mode():
+    """Get the current installation mode."""
+    try:
+        config = DevMemoryConfig.load()
+        return config.installation_mode or "cloud"
+    except Exception:
+        return "cloud"
 
 
 @app.command()
@@ -36,17 +46,8 @@ def version(
         console.print(f"[bold]devmemory[/bold] version [cyan]{__version__}[/cyan]")
 
 
-@app.command()
-def version():
-    """Show the devmemory version."""
-    from rich.console import Console
-
-    console = Console()
-    console.print(f"[bold]devmemory[/bold] version [cyan]{__version__}[/cyan]")
-
-
 app.add_typer(config_app, name="config", help="Manage devmemory configuration.")
-app.add_typer(attribution_app, name="attribution", help="Manage AI attribution (local SQLite or cloud Redis).")
+app.add_typer(attribution_app, name="attribution", help="Manage AI code line attributions.")
 
 
 @app.command()
@@ -63,7 +64,7 @@ def sync(
     ),
     all_branches: bool = typer.Option(False, "--all-branches", help="Sync commits from all local branches."),
 ):
-    """Sync Git AI notes to Redis AMS."""
+    """Sync Git AI notes."""
     run_sync(
         latest=latest,
         all_commits=all_commits,
@@ -130,13 +131,7 @@ def stats(
     create_views: bool = typer.Option(False, "--create-views", help="Create AMS summary views for team stats."),
     summarize: bool = typer.Option(False, "--summarize", "-s", help="Show LLM-generated summary from AMS views."),
 ):
-    """Show code contribution stats (AI vs Human).
-
-    By default shows individual stats. Use --team for current repo team stats.
-    Use --all-repos for all team repos (auto-discovered from AMS).
-    Use --by-repo for per-repository breakdown.
-    Use --top-repos N to show top N active repos.
-    """
+    """Show code contribution stats (AI vs Human)."""
     run_stats(
         team=team,
         all_repos=all_repos,
@@ -230,7 +225,7 @@ def install(
     ),
     force_mode: str = typer.Option("", "--mode", help="Force installation mode: 'local' or 'cloud'."),
 ):
-    """Set up Git hooks, MCP configs, and agent coordination rules."""
+    """Set up Git hooks and local storage."""
     run_install(
         skip_hook=skip_hook,
         skip_cursor=skip_cursor,
@@ -243,7 +238,51 @@ def install(
     )
 
 
+CLOUD_ONLY_COMMANDS = {
+    "search",
+    "prompts",
+    "stats",
+    "add",
+    "learn",
+    "context",
+    "why",
+    "summarize",
+    "architecture",
+}
+
+
+def _update_command_docs_for_mode(mode: str):
+    """Update command docstrings based on installation mode."""
+    if mode != "local":
+        return
+
+    for cmd in app.registered_commands:
+        if cmd.callback:
+            func_name = cmd.callback.__name__
+            if func_name == "sync":
+                cmd.help = "Sync Git AI notes to local SQLite database."
+            elif func_name == "status":
+                cmd.help = "Show system status (local mode)."
+
+
 def main():
+    mode = _get_mode()
+
+    if mode == "local":
+        app.info.name = "devmemory (local mode)"
+        app.info.help = (
+            "DevMemory - Local mode: attribution only. Use 'devmemory install --mode cloud' to enable full features."
+        )
+
+        def get_cmd_name(cmd):
+            return cmd.callback.__name__ if cmd.callback else None
+
+        app.registered_commands = [
+            cmd for cmd in app.registered_commands if get_cmd_name(cmd) not in CLOUD_ONLY_COMMANDS
+        ]
+        app.registered_groups = [group for group in app.registered_groups if group.name not in CLOUD_ONLY_COMMANDS]
+        _update_command_docs_for_mode(mode)
+
     app()
 
 
