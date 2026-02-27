@@ -262,10 +262,9 @@ def lookup_line(
     ns = namespace or _get_namespace()
 
     try:
-        config = AttributionConfig.load()
-        storage = AttributionStorage(config.redis_url)
+        storage, storage_type = _get_storage()
     except Exception as e:
-        console.print(f"[red]Failed to connect to Redis: {e}[/red]")
+        console.print(f"[red]Failed to connect to storage: {e}[/red]")
         raise typer.Exit(1)
 
     try:
@@ -315,10 +314,13 @@ def file_history(
     ns = namespace or _get_namespace()
 
     try:
-        config = AttributionConfig.load()
-        storage = AttributionStorage(config.redis_url)
+        storage, storage_type = _get_storage()
     except Exception as e:
-        console.print(f"[red]Failed to connect to Redis: {e}[/red]")
+        console.print(f"[red]Failed to connect to storage: {e}[/red]")
+        raise typer.Exit(1)
+
+    if storage_type != "redis":
+        console.print(f"[yellow]History command is only supported in cloud (Redis) mode.[/yellow]")
         raise typer.Exit(1)
 
     try:
