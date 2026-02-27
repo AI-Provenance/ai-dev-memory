@@ -91,6 +91,13 @@ class SQLiteAttributionStorage:
             self._conn.close()
             self._conn = None
 
+    def get_attribution_count(self) -> int:
+        """Get total number of attributions stored."""
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM attributions")
+        return cursor.fetchone()[0]
+
     def store_attribution(
         self,
         namespace: str,
