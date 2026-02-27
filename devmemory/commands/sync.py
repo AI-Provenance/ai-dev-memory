@@ -332,27 +332,21 @@ def run_sync(
             state.mark_synced(notes[0].sha, count=0)
         raise typer.Exit(0)
 
-    client = AMSClient(base_url=config.ams_endpoint, auth_token=config.get_auth_token())
+    # Check if we're in local mode - skip AMS entirely
+    config = DevMemoryConfig.load()
 
-    try:
-        client.health_check()
-    except Exception as e:
+    if config.is_local_mode():
+        # Local mode: Only sync attributions to SQLite, skip AMS
         if not quiet:
-            console.print(f"[red]Cannot reach AMS at {config.ams_endpoint}: {e}[/red]")
-            console.print("[dim]Is the Docker stack running? Try: make up[/dim]")
-        raise typer.Exit(1)
+            console.print("[dim]Local mode - skipping AMS sync[/dim]")
 
-    # Check attribution storage connectivity (non-blocking warning)
-    attr_config = None
-    storage_mode = "none"
-    attr_storage = None
+        # Check attribution storage connectivity
+        attr_config = None
+        storage_mode = "none"
+        attr_storage = None
 
-    try:
-        config = DevMemoryConfig.load()
-        attr_config = AttributionConfig.load()
-
-        if config.is_local_mode():
-            # Local mode: Use SQLite
+        try:
+            attr_config = AttributionConfig.load()
             sqlite_path = config.get_sqlite_path()
             try:
                 attr_storage = SQLiteAttributionStorage(sqlite_path)
@@ -366,18 +360,92 @@ def run_sync(
                 if not quiet:
                     console.print(f"[yellow]⚠ SQLite unreachable - attribution storage disabled[/yellow]")
                     console.print(f"[dim]  Path: {sqlite_path}[/dim]")
-        else:
-            # Cloud mode: Use Redis
-            try:
-                attr_storage = RedisAttributionStorage(attr_config.redis_url)
-                attr_storage.redis.ping()
-                storage_mode = "redis"
-            except Exception as e:
-                storage_mode = "none"
-                if not quiet:
-                    console.print(f"[yellow]⚠ Redis unreachable - attribution storage disabled[/yellow]")
-                    if attr_config:
-                        console.print(f"[dim]  Endpoint: {attr_config.redis_url}[/dim]")
+
+        except Exception as e:
+            storage_mode = "none"
+            if not quiet:
+                console.print(f"[yellow]⚠ Attribution storage check failed: {e}[/yellow]")
+
+        # Store line-level attribution only (skip AMS)
+        ns = config.get_active_namespace()
+        for n in notes_to_sync:
+            if n.has_ai_note:
+                for file_attr in n.files:
+                    if not file_attr.prompt_lines:
+                        continue
+
+                    line_ranges = {}
+                    for prompt_id, ranges in file_attr.prompt_lines.items():
+                        prompt = n.prompts.get(prompt_id)
+                        for r in ranges:
+                            line_ranges[r] = {
+                                "author": "ai",
+                                "prompt_id": prompt_id,
+                                "tool": prompt.tool if prompt else None,
+                                "model": prompt.model if prompt else None,
+                            }
+
+                    if line_ranges:
+                        from datetime import datetime
+
+                        try:
+                            dt = datetime.fromisoformat(n.date.replace("Z", "+00:00"))
+                            commit_timestamp = int(dt.timestamp())
+                        except Exception:
+                            commit_timestamp = None
+
+                        if attr_storage and storage_mode == "sqlite":
+                            attr_storage.store_attribution(
+                                namespace=ns,
+                                filepath=file_attr.filepath,
+                                commit_sha=n.sha,
+                                author_email=n.author_email,
+                                line_ranges=line_ranges,
+                                commit_timestamp=commit_timestamp,
+                            )
+
+        if attr_storage:
+            attr_storage.close()
+
+        # Mark as synced locally
+        if notes_to_sync:
+            newest_sha = notes_to_sync[0].sha
+            state.mark_synced(newest_sha, count=0)
+            if not quiet:
+                console.print(f"[green]✓ Synced {len(notes_to_sync)} commit(s) to local SQLite[/green]")
+                console.print(f"[dim]Last synced: {newest_sha[:8]}[/dim]")
+
+        raise typer.Exit(0)
+
+    # Cloud mode: Connect to AMS
+    client = AMSClient(base_url=config.ams_endpoint, auth_token=config.get_auth_token())
+
+    try:
+        client.health_check()
+    except Exception as e:
+        if not quiet:
+            console.print(f"[red]Cannot reach AMS at {config.ams_endpoint}: {e}[/red]")
+            console.print("[dim]Is the Docker stack running? Try: make up[/dim]")
+        raise typer.Exit(1)
+
+    # Cloud mode: Check attribution storage connectivity (non-blocking warning)
+    attr_config = None
+    storage_mode = "none"
+    attr_storage = None
+
+    try:
+        attr_config = AttributionConfig.load()
+        # Cloud mode: Use Redis
+        try:
+            attr_storage = RedisAttributionStorage(attr_config.redis_url)
+            attr_storage.redis.ping()
+            storage_mode = "redis"
+        except Exception as e:
+            storage_mode = "none"
+            if not quiet:
+                console.print(f"[yellow]⚠ Redis unreachable - attribution storage disabled[/yellow]")
+                if attr_config:
+                    console.print(f"[dim]  Endpoint: {attr_config.redis_url}[/dim]")
 
     except Exception as e:
         storage_mode = "none"
