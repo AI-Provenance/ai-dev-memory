@@ -42,6 +42,22 @@ devmemory attribution lookup path/to/file.py  # See who wrote what
 - `devmemory attribution` commands
 - Sentry error tracking with AI attributions
 
+### Sentry Integration (Local Mode)
+
+When an error hits Sentry, see which AI tool and model wrote the code that caused it.
+
+```python
+import sentry_sdk
+from devmemory.sentry import create_before_send
+
+sentry_sdk.init(
+    dsn="YOUR_SENTRY_DSN",
+    before_send=create_before_send(),
+)
+```
+
+This adds `ai_model`, `ai_tool`, `author`, `commit_sha`, and other tags and context to every Sentry event from your app.
+
 ---
 
 ### Option 2: Cloud (Redis AMS) — Full Features
