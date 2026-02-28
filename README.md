@@ -84,13 +84,12 @@ import { createDevMemoryBeforeSend } from "@devmemory/sentry";
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
   beforeSend(event, hint) {
-    return createDevMemoryBeforeSend({
-      repoId: "my-app",
-      mode: "local",
-    })(event, hint);
+    return createDevMemoryBeforeSend()(event, hint);
   },
 });
 ```
+
+Auto-detects repoId from git remote or `DEVMEMORY_REPO_ID` env var.
 
 This adds `ai_model`, `ai_tool`, `author`, `commit_sha`, and other tags to every Sentry event.
 

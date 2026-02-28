@@ -10,7 +10,7 @@ npm install @devmemory/sentry
 yarn add @devmemory/sentry
 ```
 
-## Quick Start (Local Mode)
+## Quick Start
 
 ```typescript
 import * as Sentry from "@sentry/node";
@@ -19,26 +19,25 @@ import { createDevMemoryBeforeSend } from "@devmemory/sentry";
 Sentry.init({
   dsn: process.env.SENTRY_DSN,
   beforeSend(event, hint) {
-    return createDevMemoryBeforeSend({
-      repoId: "my-app",
-      mode: "local",
-      sqlitePath: ".devmemory/attributions.db",
-    })(event, hint);
+    return createDevMemoryBeforeSend()(event, hint);
   },
 });
 ```
 
-That's it! No external services needed.
+That's it! Auto-detects:
+- `repoId` from `DEVMEMORY_REPO_ID` env or git remote
+- `sqlitePath` from `DEVMEMORY_SQLITE_PATH` env or `.devmemory/config.json`
+- `mode` from `DEVMEMORY_MODE` env (default: local)
 
 ## Options
 
-| Option | Type | Required | Description |
-|--------|------|----------|-------------|
-| `repoId` | string | Yes | Your repository/namespace ID |
-| `mode` | `"local"` \| `"cloud"` | Yes | Local (SQLite) or Cloud (AMS) |
-| `apiUrl` | string | No* | AMS API URL (*required for cloud mode) |
-| `sqlitePath` | string | No | Path to SQLite file (default: `.devmemory/attributions.db`) |
-| `timeout` | number | No | Request timeout in ms (default: 2000) |
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `repoId` | string | auto-detect | Repository ID |
+| `mode` | `"local"` \| `"cloud"` | `local` | Local (SQLite) or Cloud (AMS) |
+| `apiUrl` | string | env | AMS API URL (cloud mode) |
+| `sqlitePath` | string | `.devmemory/attributions.db` | SQLite path |
+| `timeout` | number | 2000 | Request timeout (ms) |
 
 ## What You Get
 

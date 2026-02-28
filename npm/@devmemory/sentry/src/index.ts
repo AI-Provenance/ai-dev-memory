@@ -2,10 +2,11 @@ import { Event, Hint } from "@sentry/node";
 import initSqlJs, { Database } from "sql.js";
 import * as fs from "fs";
 import * as path from "path";
+import { execSync } from "child_process";
 
 export interface DevMemoryOptions {
-  repoId: string;
-  mode: "local" | "cloud";
+  repoId?: string;
+  mode?: "local" | "cloud";
   apiUrl?: string;
   sqlitePath?: string;
   timeout?: number;
@@ -27,6 +28,77 @@ type BeforeSendCallback = (event: Event, hint: Hint) => Event;
 
 let sqlJsInitialized = false;
 let SQL: any = null;
+
+function getRepoId(): string | null {
+  // Try environment variable
+  if (process.env.DEVMEMORY_REPO_ID) {
+    return process.env.DEVMEMORY_REPO_ID;
+  }
+
+  // Try to read from .devmemory/config.json
+  try {
+    const configPath = path.resolve(".devmemory/config.json");
+    if (fs.existsSync(configPath)) {
+      const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+      if (config.namespace && config.namespace !== "non-git") {
+        return config.namespace;
+      }
+    }
+  } catch {
+    // Ignore errors
+  }
+
+  // Try git remote
+  try {
+    const remoteUrl = execSync("git remote get-url origin", { encoding: "utf-8" }).trim();
+    if (remoteUrl) {
+      // Extract repo name from URL like https://github.com/user/repo.git
+      const match = remoteUrl.match(/([^/]+)\.git$/);
+      if (match) {
+        return match[1];
+      }
+      // Or from SSH like git@github.com:user/repo.git
+      const sshMatch = remoteUrl.match(/:([^/]+)\.git$/);
+      if (sshMatch) {
+        return sshMatch[1];
+      }
+    }
+  } catch {
+    // Ignore errors
+  }
+
+  return null;
+}
+
+function getSqlitePath(): string {
+  // Try environment variable
+  if (process.env.DEVMEMORY_SQLITE_PATH) {
+    return process.env.DEVMEMORY_SQLITE_PATH;
+  }
+
+  // Try config file
+  try {
+    const configPath = path.resolve(".devmemory/config.json");
+    if (fs.existsSync(configPath)) {
+      const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+      if (config.sqlite_path) {
+        return config.sqlite_path;
+      }
+    }
+  } catch {
+    // Ignore errors
+  }
+
+  // Default path
+  return ".devmemory/attributions.db";
+}
+
+function getMode(): "local" | "cloud" {
+  if (process.env.DEVMEMORY_MODE === "cloud") {
+    return "cloud";
+  }
+  return "local";
+}
 
 async function initSqlJsOnce(): Promise<any> {
   if (!sqlJsInitialized) {
@@ -209,15 +281,14 @@ async function getDatabase(sqlitePath: string): Promise<Database | null> {
 }
 
 export function createDevMemoryBeforeSend(
-  options: DevMemoryOptions
+  options: DevMemoryOptions = {}
 ): BeforeSendCallback {
-  const {
-    repoId,
-    mode,
-    apiUrl,
-    sqlitePath = ".devmemory/attributions.db",
-    timeout = 2000,
-  } = options;
+  // Apply defaults with auto-detection
+  const mode = options.mode || getMode();
+  const repoId = options.repoId || getRepoId();
+  const sqlitePath = options.sqlitePath || getSqlitePath();
+  const apiUrl = options.apiUrl || process.env.DEVMEMORY_API_URL;
+  const timeout = options.timeout || 2000;
 
   // Pre-load database for local mode
   let dbPromise: Promise<Database | null> | null = null;
@@ -229,6 +300,12 @@ export function createDevMemoryBeforeSend(
     event: Event,
     _hint: Hint
   ): Promise<Event> {
+    // Check if repoId is available
+    if (!repoId) {
+      console.warn("[DevMemory] repoId not found. Set DEVMEMORY_REPO_ID env var or run devmemory install.");
+      return event;
+    }
+
     try {
       const frame = extractFirstInAppFrame(event);
       if (!frame) {
