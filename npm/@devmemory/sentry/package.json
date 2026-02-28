@@ -1,6 +1,6 @@
 {
   "name": "@aiprovenance/sentry",
-  "version": "0.1.32",
+  "version": "0.1.33",
   "description": "Sentry integration for AI code attribution",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
