@@ -1,0 +1,47 @@
+name: Publish npm package
+
+on:
+  push:
+    tags:
+      - 'npm/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: |
+          cd npm/@devmemory/sentry
+          npm install
+
+      - name: Build
+        run: |
+          cd npm/@devmemory/sentry
+          npm run build
+
+      - name: Publish
+        run: |
+          cd npm/@devmemory/sentry
+          npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: npm/@devmemory/sentry/dist/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

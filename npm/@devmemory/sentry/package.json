@@ -1,0 +1,34 @@
+{
+  "name": "@aiprovenance/sentry",
+  "version": "0.1.0",
+  "description": "Sentry integration for AI code attribution",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "echo \"No tests yet\" && exit 0"
+  },
+  "keywords": [
+    "devmemory",
+    "sentry",
+    "ai",
+    "attribution",
+    "debugging"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@sentry/node": "^7.0.0",
+    "sql.js": "^1.10.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/sql.js": "^1.4.9",
+    "typescript": "^5.0.0"
+  },
+  "peerDependencies": {
+    "@sentry/node": ">=7.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
