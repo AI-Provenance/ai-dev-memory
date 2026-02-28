@@ -6,6 +6,15 @@
 
 **AI code attribution that answers "why?" — for developers and AI agents.**
 
+Built on [Git AI](https://github.com/git-ai-project/git-ai) for capture and [Redis Agent Memory Server](https://github.com/redis/agent-memory-server) for semantic search and recall.
+
+> For local mode we use [sqlite](https://github.com/sqlite/sqlite)
+
+> Status: currently in Beta.
+
+
+**AI code attribution that answers "why?" — for developers and AI agents.**
+
 DevMemory tracks which AI tool wrote which line of code, then makes that knowledge searchable. Ask "why did we use this pattern?" and get answers backed by commits, prompts, and context.
 
 ---
