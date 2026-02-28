@@ -58,7 +58,16 @@ function getSqlitePath(): string {
     const configPath = path.resolve(".devmemory/config.json");
     if (fs.existsSync(configPath)) {
       const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
-      if (config.sqlite_path) return config.sqlite_path;
+      if (config.sqlite_path) {
+        // Validate path is within current repo
+        try {
+          const normalized = path.resolve(config.sqlite_path);
+          const cwd = process.cwd();
+          if (normalized.startsWith(cwd)) {
+            return config.sqlite_path;
+          }
+        } catch {}
+      }
     }
   } catch {}
 

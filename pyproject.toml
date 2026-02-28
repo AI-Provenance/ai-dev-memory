@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "devmemory"
-version = "0.1.32"
+version = "0.1.33"
 description = "DevMemory is a long‑term memory for AI coding agents. Make AI knowledge searchable."
 readme = "README.md"
 license = "MIT"
