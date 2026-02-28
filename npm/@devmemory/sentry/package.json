@@ -1,6 +1,6 @@
 {
   "name": "@aiprovenance/sentry",
-  "version": "0.1.30",
+  "version": "0.1.31",
   "description": "Sentry integration for AI code attribution",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -17,12 +17,21 @@
   ],
   "license": "MIT",
   "dependencies": {
-    "@sentry/node": "^7.0.0",
-    "sql.js": "^1.10.0"
+    "@sentry/node": "^7.0.0"
+  },
+  "peerDependencies": {
+    "@sentry/node": ">=7.0.0",
+    "better-sqlite3": ">=9.0.0"
+  },
+  "peerDependenciesMeta": {
+    "better-sqlite3": {
+      "optional": true
+    }
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11",
     "@types/node": "^20.0.0",
-    "@types/sql.js": "^1.4.9",
+    "better-sqlite3": "^11.0.0",
     "typescript": "^5.0.0"
   },
   "peerDependencies": {
