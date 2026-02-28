@@ -44,18 +44,18 @@ class DevMemoryConfig:
         log.debug("load: loading configuration")
         config = cls()
 
-        # 1. Load global
+        # 1. Load global (but NOT sqlite_path - that's repo-specific)
         if CONFIG_FILE.exists():
             try:
                 raw = json.loads(CONFIG_FILE.read_text())
                 for k, v in raw.items():
-                    if k in cls.__dataclass_fields__:
+                    if k in cls.__dataclass_fields__ and k != "sqlite_path":
                         setattr(config, k, v)
                 log.debug(f"load: loaded global config from {CONFIG_FILE}")
             except Exception as e:
                 log.warning(f"load: failed to parse global config - {e}")
 
-        # 2. Load local
+        # 2. Load local (sqlite_path only comes from here)
         repo_root = get_repo_root()
         if repo_root:
             local_file = Path(repo_root) / ".devmemory" / "config.json"
@@ -118,10 +118,23 @@ class DevMemoryConfig:
 
     def get_sqlite_path(self) -> str:
         """Get the SQLite database path for local mode."""
+        repo_root = get_repo_root()
+
+        # If sqlite_path is set and is within current repo, use it
+        if self.sqlite_path and repo_root:
+            try:
+                # Check if path is within current repo
+                normalized = Path(self.sqlite_path).resolve()
+                if not str(normalized).startswith(str(Path(repo_root).resolve())):
+                    log.debug(f"sqlite_path {self.sqlite_path} not in current repo, recalculating")
+                    self.sqlite_path = ""  # Reset to force recalculation
+            except Exception:
+                self.sqlite_path = ""
+
         if self.sqlite_path:
             return self.sqlite_path
+
         # Default to .devmemory/attributions.db in repo root
-        repo_root = get_repo_root()
         if repo_root:
             return str(Path(repo_root) / ".devmemory" / "attributions.db")
         return ""

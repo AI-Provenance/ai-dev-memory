@@ -7,9 +7,9 @@ RED='\033[0;31m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-info()  { echo -e "${GREEN}✓${NC} $1"; }
-warn()  { echo -e "${YELLOW}!${NC} $1"; }
-error() { echo -e "${RED}✗${NC} $1"; }
+info()  { printf "%b\n" "${GREEN}✓${NC} $1"; }
+warn()  { printf "%b\n" "${YELLOW}!${NC} $1"; }
+error() { printf "%b\n" "${RED}✗${NC} $1"; }
 
 # Detect OS
 detect_os() {
@@ -66,7 +66,7 @@ else
     exit 1
 fi
 
-PYTHON_VERSION=$($PYTHON --version 2>&1 | awk '{print $2}')
+PYTHON_VERSION=$($PYTHON --version 2>&1 | cut -d' ' -f2)
 info "Python $PYTHON_VERSION"
 
 # Install uv
@@ -75,41 +75,33 @@ if ! install_uv "$OS"; then
     exit 1
 fi
 
-info "uv $(uv --version | awk '{print $2}')"
+UV_VERSION=$(uv --version 2>&1 | cut -d' ' -f2 || echo "unknown")
+info "uv $UV_VERSION"
 
 info "Installing DevMemory..."
 uv tool install -U devmemory
 
-# Verify installation
-if ! command -v devmemory &>/dev/null; then
-    # Try to find it
-    DEVmemory_PATH=$(uv tool list 2>/dev/null | grep "devmemory" | head -1)
-    if [ -n "$DEVmemory_PATH" ]; then
-        info "DevMemory installed (path: $DEVmemory_PATH)"
-    else
-        warn "DevMemory may need a new shell to be available"
-    fi
-fi
-
+# Get installed version
+VERSION=$(devmemory version --short 2>/dev/null || echo "unknown")
 echo ""
-info "DevMemory installed!"
+info "DevMemory $VERSION installed!"
 echo ""
 
 # Check if in a git repo
 if git rev-parse --show-toplevel &>/dev/null 2>&1; then
     REPO_ROOT=$(git rev-parse --show-toplevel)
-    echo -e "${CYAN}Detected git repo: $REPO_ROOT${NC}"
+    printf "%b\n" "${CYAN}Detected git repo: $REPO_ROOT${NC}"
     echo ""
     echo "Run one of these to set up:"
     echo ""
-    echo "  ${GREEN}# Local mode (SQLite, no infrastructure):${NC}"
-    echo "  devmemory install --mode local"
+    printf "%b\n" "  ${GREEN}# Local mode (SQLite, no infrastructure):${NC}"
+    echo "    devmemory install --mode local"
     echo ""
-    echo "  ${GREEN}# Cloud mode (Redis AMS, full features):${NC}"
-    echo "  devmemory install --mode cloud"
+    printf "%b\n" "  ${GREEN}# Cloud mode (Redis AMS, full features):${NC}"
+    echo "    devmemory install --mode cloud"
     echo ""
 else
-    echo -e "${CYAN}Not in a git repository.${NC}"
+    printf "%b\n" "${CYAN}Not in a git repository.${NC}"
     echo ""
     echo "To set up in your project:"
     echo "  cd your-project"
