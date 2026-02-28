@@ -1,4 +1,4 @@
-import { Event, Hint } from "@sentry/node";
+import { Event } from "@sentry/node";
 import initSqlJs, { Database } from "sql.js";
 import * as fs from "fs";
 import * as path from "path";
@@ -24,7 +24,7 @@ export interface Attribution {
   lineno?: number;
 }
 
-type BeforeSendCallback = (event: Event, hint: Hint) => Event;
+type BeforeSendCallback = (event: Event, hint: any) => Event | Promise<Event>;
 
 let sqlJsInitialized = false;
 let SQL: any = null;
@@ -167,7 +167,7 @@ async function lookupFromAPI(
     clearTimeout(timeoutId);
 
     if (response.ok) {
-      return await response.json();
+      return (await response.json()) as Attribution | null;
     }
     return null;
   } catch {
@@ -298,7 +298,7 @@ export function createDevMemoryBeforeSend(
 
   return async function beforeSend(
     event: Event,
-    _hint: Hint
+    _hint: any
   ): Promise<Event> {
     // Check if repoId is available
     if (!repoId) {

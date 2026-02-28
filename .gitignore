@@ -19,3 +19,4 @@ redisinsight_data/
 .devmemory/CONTEXT.md
 .devmemory/knowledge/*
 .devmemory/*
+node_modules/
