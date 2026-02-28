@@ -1,20 +1,20 @@
-# @devmemory/sentry
+# @aiprovenance/sentry
 
 **Sentry integration for AI code attribution.**
 
 ## Install
 
 ```bash
-npm install @devmemory/sentry
+npm install @aiprovenance/sentry
 # or
-yarn add @devmemory/sentry
+yarn add @aiprovenance/sentry
 ```
 
 ## Quick Start
 
 ```typescript
 import * as Sentry from "@sentry/node";
-import { createDevMemoryBeforeSend } from "@devmemory/sentry";
+import { createDevMemoryBeforeSend } from "@aiprovenance/sentry";
 
 Sentry.init({
   dsn: process.env.SENTRY_DSN,

@@ -75,11 +75,11 @@ sentry_sdk.init(
 
 **Node.js / Next.js:**
 ```bash
-npm install @devmemory/sentry
+npm install @aiprovenance/sentry
 ```
 
 ```javascript
-import { createDevMemoryBeforeSend } from "@devmemory/sentry";
+import { createDevMemoryBeforeSend } from "@aiprovenance/sentry";
 
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,

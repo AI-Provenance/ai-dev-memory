@@ -1,5 +1,5 @@
 {
-  "name": "@devmemory/sentry",
+  "name": "@aiprovenance/sentry",
   "version": "0.1.0",
   "description": "Sentry integration for AI code attribution",
   "main": "dist/index.js",
@@ -27,5 +27,8 @@
   },
   "peerDependencies": {
     "@sentry/node": ">=7.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
