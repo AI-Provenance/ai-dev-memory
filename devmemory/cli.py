@@ -215,26 +215,18 @@ def architecture(
 @app.command()
 def install(
     skip_hook: bool = typer.Option(False, "--skip-hook", help="Skip post-commit hook installation."),
-    skip_cursor: bool = typer.Option(False, "--skip-cursor", help="Skip Cursor MCP config."),
-    skip_antigravity: bool = typer.Option(False, "--skip-antigravity", help="Skip Antigravity MCP config."),
-    skip_opencode: bool = typer.Option(False, "--skip-opencode", help="Skip OpenCode MCP config."),
-    skip_rule: bool = typer.Option(False, "--skip-rule", help="Skip Cursor agent rule installation."),
-    mcp_endpoint: str = typer.Option("", "--mcp-endpoint", help="Override MCP server endpoint."),
     interactive: bool = typer.Option(
         False, "--interactive", "-i", help="Interactive mode to select installation mode (local/cloud)."
     ),
     force_mode: str = typer.Option("", "--mode", help="Force installation mode: 'local' or 'cloud'."),
+    api_key: str = typer.Option("", "--api-key", help="API key for cloud mode (get one at aiprove.org)."),
 ):
     """Set up Git hooks and local storage."""
     run_install(
         skip_hook=skip_hook,
-        skip_cursor=skip_cursor,
-        skip_antigravity=skip_antigravity,
-        skip_opencode=skip_opencode,
-        skip_rule=skip_rule,
-        mcp_endpoint=mcp_endpoint,
         interactive=interactive,
         force_mode=force_mode,
+        api_key=api_key,
     )
 
 

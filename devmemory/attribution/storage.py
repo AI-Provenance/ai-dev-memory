@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from typing import Optional
-from devmemory.attribution.redis_storage import AttributionStorage as RedisAttributionStorage
 from devmemory.attribution.sqlite_storage import SQLiteAttributionStorage
 from devmemory.core.logging_config import get_logger
 
@@ -12,32 +11,29 @@ class AttributionStorage:
     """
     Unified attribution storage interface.
 
-    Automatically selects backend based on configuration:
-    - Local mode: SQLite
-    - Cloud mode: Redis
+    Local mode only: SQLite storage
+    Cloud mode will be implemented via HTTP API client (separate module)
     """
 
-    def __init__(self, storage_type: str = "redis", **kwargs):
+    def __init__(self, storage_type: str = "sqlite", **kwargs):
         """
         Initialize attribution storage.
 
         Args:
-            storage_type: "sqlite" for local mode, "redis" for cloud mode
+            storage_type: Only "sqlite" supported in local mode
             **kwargs: Additional arguments passed to the underlying storage
         """
-        self.storage_type = storage_type
-        self._storage = None
+        if storage_type != "sqlite":
+            raise ValueError(
+                f"Storage type '{storage_type}' not supported in local mode. "
+                f"Local mode only supports 'sqlite'. "
+                f"For cloud features, use 'devmemory install --mode cloud --api-key YOUR_KEY'"
+            )
 
-        if storage_type == "sqlite":
-            db_path = kwargs.get("db_path", "")
-            self._storage = SQLiteAttributionStorage(db_path)
-            log.debug(f"AttributionStorage: initialized SQLite backend at {db_path}")
-        elif storage_type == "redis":
-            redis_url = kwargs.get("redis_url", "redis://localhost:6379")
-            self._storage = RedisAttributionStorage(redis_url)
-            log.debug(f"AttributionStorage: initialized Redis backend at {redis_url}")
-        else:
-            raise ValueError(f"Unknown storage type: {storage_type}")
+        self.storage_type = storage_type
+        db_path = kwargs.get("db_path", "")
+        self._storage: SQLiteAttributionStorage = SQLiteAttributionStorage(db_path)
+        log.debug(f"AttributionStorage: initialized SQLite backend at {db_path}")
 
     def store_attribution(
         self,
@@ -120,5 +116,4 @@ class AttributionStorage:
 
     def close(self) -> None:
         """Close storage connection."""
-        if self._storage:
-            self._storage.close()
+        self._storage.close()

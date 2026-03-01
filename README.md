@@ -6,9 +6,10 @@
 
 **AI code attribution that answers "why?" — for developers and AI agents.**
 
-Built on [Git AI](https://github.com/git-ai-project/git-ai) for capture and [Redis Agent Memory Server](https://github.com/redis/agent-memory-server) for semantic search and recall.
+Built on [Git AI](https://github.com/git-ai-project/git-ai) for capture.
 
-> For local mode we use [sqlite](https://github.com/sqlite/sqlite)
+**Local mode:** SQLite storage (free, works offline)  
+**Cloud mode:** API-based advanced features (coming soon)
 
 > Status: currently in Beta.
 
@@ -23,7 +24,7 @@ DevMemory tracks which AI tool wrote which line of code, then makes that knowled
 
 ```bash
 # One-line install (local mode)
-curl -sSL https://raw.githubusercontent.com/AI-Provenance/ai-dev-memory/main/scripts/install-simple.sh | bash
+curl -sSL https://raw.githubusercontent.com/AI-Provenance/ai-dev-memory/main/scripts/install.sh | bash
 ```
 
 Then in your project:
@@ -95,22 +96,20 @@ This adds `ai_model`, `ai_tool`, `author`, `commit_sha`, and other tags to every
 
 ---
 
-### Option 2: Cloud (Redis AMS) — Full Features
+### Option 2: Cloud — Advanced Features (Coming Soon)
 
-> **Note:** Full Cloud mode is coming soon. Some features below require additional setup.
+> **Note:** Cloud mode with advanced features is coming soon. Sign up at [aiprove.org](https://aiprove.org) to get notified.
 
-For teams who want semantic search, team stats, and AI agent memory.
+For teams who want semantic search, team analytics, and AI-powered insights.
 
 ```bash
 # 1. Install
 pip install devmemory
 
-# 2. Start Redis AMS
-docker compose --profile debug up -d
-
+# 2. Get API key at aiprove.org
 # 3. Set up in your repo
 cd your-project
-devmemory install --mode cloud
+devmemory install --mode cloud --api-key YOUR_API_KEY
 
 # Start using
 devmemory why src/auth.py          # Ask why a file looks this way
@@ -168,13 +167,13 @@ devmemory stats                    # AI vs Human code stats
 
 - Python 3.10+
 - [Git AI](https://usegitai.com/) — for capturing AI code attribution
-- (Cloud mode) Docker — for Redis AMS
+- (Cloud mode) API key from [aiprove.org](https://aiprove.org)
 
 ---
 
 ## Learn More
 
-- [Documentation](https://docs.devmemory.ai)
+- [Documentation](https://docs.aiprove.org)
 - [GitHub](https://github.com/AI-Provenance/ai-dev-memory)
 
 ---

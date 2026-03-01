@@ -20,7 +20,6 @@ from devmemory.core.ams_client import AMSClient
 from devmemory.core.memory_formatter import generate_commit_summary
 from devmemory.core.logging_config import get_logger
 from devmemory.attribution import AttributionConfig
-from devmemory.attribution.redis_storage import AttributionStorage as RedisAttributionStorage
 from devmemory.attribution.sqlite_storage import SQLiteAttributionStorage
 from datetime import datetime, timezone
 
@@ -428,24 +427,23 @@ def run_sync(
             console.print("[dim]Is the Docker stack running? Try: make up[/dim]")
         raise typer.Exit(1)
 
-    # Cloud mode: Check attribution storage connectivity (non-blocking warning)
+    # Local mode: Use SQLite for attribution storage
     attr_config = None
-    storage_mode = "none"
+    storage_mode = "sqlite"
     attr_storage = None
 
     try:
         attr_config = AttributionConfig.load()
-        # Cloud mode: Use Redis
-        try:
-            attr_storage = RedisAttributionStorage(attr_config.redis_url)
-            attr_storage.redis.ping()
-            storage_mode = "redis"
-        except Exception as e:
+        sqlite_path = attr_config.db_path
+        if sqlite_path:
+            attr_storage = SQLiteAttributionStorage(sqlite_path)
+            # Test connection
+            attr_storage._get_conn()
+            storage_mode = "sqlite"
+        else:
             storage_mode = "none"
             if not quiet:
-                console.print(f"[yellow]⚠ Redis unreachable - attribution storage disabled[/yellow]")
-                if attr_config:
-                    console.print(f"[dim]  Endpoint: {attr_config.redis_url}[/dim]")
+                console.print("[yellow]⚠ No SQLite path configured - attribution storage disabled[/yellow]")
 
     except Exception as e:
         storage_mode = "none"
