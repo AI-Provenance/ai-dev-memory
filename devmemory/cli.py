@@ -18,7 +18,7 @@ from devmemory.commands.summarize import run_summarize, run_generate_architectur
 
 app = typer.Typer(
     name="devmemory",
-    help="DevMemory - AI coding context sync and attribution.",
+    help="DevMemory - AI coding attribution tracking.",
     no_args_is_help=True,
 )
 
@@ -27,9 +27,9 @@ def _get_mode():
     """Get the current installation mode."""
     try:
         config = DevMemoryConfig.load()
-        return config.installation_mode or "cloud"
+        return config.installation_mode or "local"
     except Exception:
-        return "cloud"
+        return "local"
 
 
 @app.command()
@@ -48,6 +48,7 @@ def version(
 
 app.add_typer(config_app, name="config", help="Manage devmemory configuration.")
 app.add_typer(attribution_app, name="attribution", help="Manage AI code line attributions.")
+app.add_typer(prompts_app, name="prompts", help="Browse and search Git AI prompts.")
 
 
 @app.command()
@@ -64,7 +65,7 @@ def sync(
     ),
     all_branches: bool = typer.Option(False, "--all-branches", help="Sync commits from all local branches."),
 ):
-    """Sync Git AI notes."""
+    """Sync Git AI notes to attribution storage."""
     run_sync(
         latest=latest,
         all_commits=all_commits,
@@ -97,66 +98,69 @@ def search(
         0.0, "--recency", help="Apply recency boost (0.0=none, 1.0=full priority on recent)."
     ),
 ):
-    """Search the project knowledgebase with AI-powered answer synthesis."""
-    run_search(
-        query=query,
-        limit=limit,
-        namespace=namespace,
-        topic=topic,
-        memory_type=memory_type,
-        threshold=threshold,
-        raw=raw,
-        recency_boost=recency_boost,
-    )
+    """Search the project knowledgebase with AI-powered answer synthesis. (Cloud Edition - Coming Soon)"""
+    from rich.console import Console
 
-
-app.add_typer(prompts_app, name="prompts")
-
-
-@app.command()
-def status():
-    """Show system status."""
-    run_status()
+    console = Console()
+    console.print("[yellow]⚠ This feature requires Cloud Edition[/yellow]")
+    console.print("[dim]Get an API key at: https://devmemory.ai[/dim]")
+    console.print("")
+    console.print("Local mode features available now:")
+    console.print("  - devmemory attribution lookup <file>")
+    console.print("  - devmemory sync")
+    console.print("  - devmemory status")
+    # run_search(query=query, limit=limit, namespace=namespace, topics=topic or None, memory_type=memory_type or None, threshold=threshold, raw=raw, recency_boost=recency_boost)
 
 
 @app.command()
 def stats(
-    team: bool = typer.Option(False, "--team", "-t", help="Show team-wide stats instead of individual."),
-    all_repos: bool = typer.Option(False, "--all-repos", "-a", help="Show stats across all team repos."),
-    by_repo: bool = typer.Option(False, "--by-repo", "-r", help="Show breakdown by repository for each developer."),
-    top_repos: Optional[int] = typer.Option(None, "--top-repos", help="Show top N most active repositories."),
-    days: Optional[int] = typer.Option(None, "--days", "-d", help="Filter to last N days (e.g., 30, 90)."),
-    all_time: bool = typer.Option(False, "--all-time", help="Show all-time stats (no time filter)."),
-    quiet: bool = typer.Option(False, "--quiet", "-q", help="Minimal output."),
-    create_views: bool = typer.Option(False, "--create-views", help="Create AMS summary views for team stats."),
-    summarize: bool = typer.Option(False, "--summarize", "-s", help="Show LLM-generated summary from AMS views."),
+    days: int = typer.Option(30, "--days", "-d", help="Time window in days (default: 30)."),
+    output: str = typer.Option("table", "--output", "-o", help="Output format: table, json, csv."),
+    by_topic: bool = typer.Option(False, "--by-topic", help="Group stats by topic."),
+    by_entity: bool = typer.Option(False, "--by-entity", help="Group stats by entity."),
+    since_commit: str = typer.Option("", "--since", help="Show stats since a specific commit SHA."),
+    create_view: bool = typer.Option(
+        False, "--create-view", help="Create a persistent AMS summary view from these stats."
+    ),
+    view_name: str = typer.Option("", "--view-name", help="Name for the summary view (if --create-view)."),
+    list_views: bool = typer.Option(False, "--list-views", help="List all stats summary views."),
+    delete_view: str = typer.Option("", "--delete-view", help="Delete a specific summary view by name."),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Minimal output, suitable for scripting."),
 ):
-    """Show code contribution stats (AI vs Human)."""
-    run_stats(
-        team=team,
-        all_repos=all_repos,
-        by_repo=by_repo,
-        top_repos=top_repos,
-        days=days,
-        all_time=all_time,
-        quiet=quiet,
-        create_views=create_views,
-        summarize=summarize,
-    )
+    """Show project statistics from memory store. (Cloud Edition - Coming Soon)"""
+    from rich.console import Console
+
+    console = Console()
+    console.print("[yellow]⚠ This feature requires Cloud Edition[/yellow]")
+    console.print("[dim]Get an API key at: https://devmemory.ai[/dim]")
+    console.print("")
+    console.print("Local mode features available now:")
+    console.print("  - devmemory attribution lookup <file>")
+    console.print("  - devmemory sync")
+    console.print("  - devmemory status")
+    # run_stats(days=days, output=output, by_topic=by_topic, by_entity=by_entity, since_commit=since_commit, create_view=create_view, view_name=view_name, list_views=list_views, delete_view=delete_view, quiet=quiet)
 
 
 @app.command()
 def add(
-    text: str = typer.Argument("", help="Memory text to store. If empty, launches interactive mode."),
-    memory_type: str = typer.Option(
-        "semantic", "--type", help="Memory type: semantic (facts/decisions) or episodic (events)."
-    ),
-    topic: list[str] = typer.Option([], "--topic", "-t", help="Topic tags (can specify multiple)."),
+    text: str = typer.Argument(..., help="The memory text to store."),
+    memory_type: str = typer.Option("semantic", "--type", "-t", help="Memory type (episodic, semantic)."),
+    topic: list[str] = typer.Option([], "--topic", help="Topic tags (can specify multiple)."),
     entity: list[str] = typer.Option([], "--entity", "-e", help="Entity tags (can specify multiple)."),
     interactive: bool = typer.Option(False, "--interactive", "-i", help="Interactive mode with prompts."),
 ):
-    """Add a memory directly (design decisions, gotchas, conventions, etc.)."""
-    run_add(text=text, memory_type=memory_type, topics=topic or None, entities=entity or None, interactive=interactive)
+    """Add a memory directly (design decisions, gotchas, conventions, etc.). (Cloud Edition - Coming Soon)"""
+    from rich.console import Console
+
+    console = Console()
+    console.print("[yellow]⚠ This feature requires Cloud Edition[/yellow]")
+    console.print("[dim]Get an API key at: https://devmemory.ai[/dim]")
+    console.print("")
+    console.print("Local mode features available now:")
+    console.print("  - devmemory attribution lookup <file>")
+    console.print("  - devmemory sync")
+    console.print("  - devmemory status")
+    # run_add(text=text, memory_type=memory_type, topics=topic or None, entities=entity or None, interactive=interactive)
 
 
 @app.command()
@@ -164,8 +168,18 @@ def learn(
     path: str = typer.Argument("", help="Path to knowledge directory (default: .devmemory/knowledge/)."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be synced without sending."),
 ):
-    """Sync knowledge files (markdown) into the memory store."""
-    run_learn(path=path, dry_run=dry_run)
+    """Sync knowledge files (markdown) into the memory store. (Cloud Edition - Coming Soon)"""
+    from rich.console import Console
+
+    console = Console()
+    console.print("[yellow]⚠ This feature requires Cloud Edition[/yellow]")
+    console.print("[dim]Get an API key at: https://devmemory.ai[/dim]")
+    console.print("")
+    console.print("Local mode features available now:")
+    console.print("  - devmemory attribution lookup <file>")
+    console.print("  - devmemory sync")
+    console.print("  - devmemory status")
+    # run_learn(path=path, dry_run=dry_run)
 
 
 @app.command()
@@ -173,8 +187,18 @@ def context(
     output: str = typer.Option("", "--output", "-o", help="Output file path (default: .devmemory/CONTEXT.md)."),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="No terminal output, just write the file."),
 ):
-    """Generate a context briefing from memory based on current git state."""
-    run_context(output=output, quiet=quiet)
+    """Generate a context briefing from memory based on current git state. (Cloud Edition - Coming Soon)"""
+    from rich.console import Console
+
+    console = Console()
+    console.print("[yellow]⚠ This feature requires Cloud Edition[/yellow]")
+    console.print("[dim]Get an API key at: https://devmemory.ai[/dim]")
+    console.print("")
+    console.print("Local mode features available now:")
+    console.print("  - devmemory attribution lookup <file>")
+    console.print("  - devmemory sync")
+    console.print("  - devmemory status")
+    # run_context(output=output, quiet=quiet)
 
 
 @app.command()
@@ -185,8 +209,18 @@ def why(
     raw: bool = typer.Option(False, "--raw", help="Show raw memories and git history without LLM synthesis."),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show verbose explanation and sources."),
 ):
-    """Explain why a file (or function) exists and how it evolved."""
-    run_why(filepath=filepath, function=function, limit=limit, raw=raw, verbose=verbose)
+    """Explain why a file (or function) exists and how it evolved. (Cloud Edition - Coming Soon)"""
+    from rich.console import Console
+
+    console = Console()
+    console.print("[yellow]⚠ This feature requires Cloud Edition[/yellow]")
+    console.print("[dim]Get an API key at: https://devmemory.ai[/dim]")
+    console.print("")
+    console.print("Local mode features available now:")
+    console.print("  - devmemory attribution lookup <file>")
+    console.print("  - devmemory sync")
+    console.print("  - devmemory status")
+    # run_why(filepath=filepath, function=function, limit=limit, raw=raw, verbose=verbose)
 
 
 @app.command()
@@ -197,10 +231,18 @@ def summarize(
     list_views: bool = typer.Option(False, "--list", "-l", help="List all summary views."),
     delete_view: Optional[str] = typer.Option(None, "--delete", "-d", help="Delete a specific summary view by ID."),
 ):
-    """Create and manage project-level summaries using Redis AMS summary views."""
-    run_summarize(
-        view_type=view_type, time_window=time_window, manual=manual, list_views=list_views, delete_view=delete_view
-    )
+    """Create and manage project-level summaries using Redis AMS summary views. (Cloud Edition - Coming Soon)"""
+    from rich.console import Console
+
+    console = Console()
+    console.print("[yellow]⚠ This feature requires Cloud Edition[/yellow]")
+    console.print("[dim]Get an API key at: https://devmemory.ai[/dim]")
+    console.print("")
+    console.print("Local mode features available now:")
+    console.print("  - devmemory attribution lookup <file>")
+    console.print("  - devmemory sync")
+    console.print("  - devmemory status")
+    # run_summarize(view_type=view_type, time_window=time_window, manual=manual, list_views=list_views, delete_view=delete_view)
 
 
 @app.command()
@@ -208,8 +250,18 @@ def architecture(
     output: str = typer.Option(".devmemory/architecture-summary.md", "--output", "-o", help="Output file path."),
     time_window: int = typer.Option(30, "--time-window", "-w", help="Time window in days for analysis."),
 ):
-    """Generate comprehensive architecture summary document."""
-    run_generate_architecture_summary(output=output, time_window=time_window)
+    """Generate comprehensive architecture summary document. (Cloud Edition - Coming Soon)"""
+    from rich.console import Console
+
+    console = Console()
+    console.print("[yellow]⚠ This feature requires Cloud Edition[/yellow]")
+    console.print("[dim]Get an API key at: https://devmemory.ai[/dim]")
+    console.print("")
+    console.print("Local mode features available now:")
+    console.print("  - devmemory attribution lookup <file>")
+    console.print("  - devmemory sync")
+    console.print("  - devmemory status")
+    # run_generate_architecture_summary(output=output, time_window=time_window)
 
 
 @app.command()
@@ -219,7 +271,7 @@ def install(
         False, "--interactive", "-i", help="Interactive mode to select installation mode (local/cloud)."
     ),
     force_mode: str = typer.Option("", "--mode", help="Force installation mode: 'local' or 'cloud'."),
-    api_key: str = typer.Option("", "--api-key", help="API key for cloud mode (get one at aiprove.org)."),
+    api_key: str = typer.Option("", "--api-key", help="API key for cloud mode (get one at devmemory.ai)."),
 ):
     """Set up Git hooks and local storage."""
     run_install(
@@ -230,51 +282,14 @@ def install(
     )
 
 
-CLOUD_ONLY_COMMANDS = {
-    "search",
-    "prompts",
-    "stats",
-    "add",
-    "learn",
-    "context",
-    "why",
-    "summarize",
-    "architecture",
-}
-
-
-def _update_command_docs_for_mode(mode: str):
-    """Update command docstrings based on installation mode."""
-    if mode != "local":
-        return
-
-    for cmd in app.registered_commands:
-        if cmd.callback:
-            func_name = cmd.callback.__name__
-            if func_name == "sync":
-                cmd.help = "Sync Git AI notes to local SQLite database."
-            elif func_name == "status":
-                cmd.help = "Show system status (local mode)."
+@app.command()
+def status():
+    """Show system status."""
+    run_status()
 
 
 def main():
-    mode = _get_mode()
-
-    if mode == "local":
-        app.info.name = "devmemory (local mode)"
-        app.info.help = (
-            "DevMemory - Local mode: attribution only. Use 'devmemory install --mode cloud' to enable full features."
-        )
-
-        def get_cmd_name(cmd):
-            return cmd.callback.__name__ if cmd.callback else None
-
-        app.registered_commands = [
-            cmd for cmd in app.registered_commands if get_cmd_name(cmd) not in CLOUD_ONLY_COMMANDS
-        ]
-        app.registered_groups = [group for group in app.registered_groups if group.name not in CLOUD_ONLY_COMMANDS]
-        _update_command_docs_for_mode(mode)
-
+    """Entry point for the CLI."""
     app()
 
 

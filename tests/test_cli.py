@@ -105,7 +105,9 @@ class TestCLIWhyCommand:
     def test_why_missing_file(self, temp_git_repo, monkeypatch):
         monkeypatch.chdir(temp_git_repo)
         result = runner.invoke(app, ["why", "nonexistent.py"])
-        assert result.exit_code == 1
+        # Cloud commands show "Coming Soon" message and exit 0
+        assert result.exit_code == 0
+        assert "Cloud Edition" in result.output
 
     def test_why_with_function(self, temp_git_repo, monkeypatch):
         monkeypatch.chdir(temp_git_repo)
