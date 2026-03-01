@@ -98,18 +98,17 @@ def search(
         0.0, "--recency", help="Apply recency boost (0.0=none, 1.0=full priority on recent)."
     ),
 ):
-    """Search the project knowledgebase with AI-powered answer synthesis. (Cloud Edition - Coming Soon)"""
-    from rich.console import Console
-
-    console = Console()
-    console.print("[yellow]⚠ This feature requires Cloud Edition[/yellow]")
-    console.print("[dim]Get an API key at: https://aiprove.org[/dim]")
-    console.print("")
-    console.print("Local mode features available now:")
-    console.print("  - devmemory attribution lookup <file>")
-    console.print("  - devmemory sync")
-    console.print("  - devmemory status")
-    # run_search(query=query, limit=limit, namespace=namespace, topics=topic or None, memory_type=memory_type or None, threshold=threshold, raw=raw, recency_boost=recency_boost)
+    """Search the project knowledgebase via Cloud API."""
+    run_search(
+        query=query,
+        limit=limit,
+        namespace=namespace,
+        topic=topic or None,
+        memory_type=memory_type,
+        threshold=threshold,
+        raw=raw,
+        recency_boost=recency_boost,
+    )
 
 
 @app.command()
@@ -127,18 +126,19 @@ def stats(
     delete_view: str = typer.Option("", "--delete-view", help="Delete a specific summary view by name."),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Minimal output, suitable for scripting."),
 ):
-    """Show project statistics from memory store. (Cloud Edition - Coming Soon)"""
-    from rich.console import Console
-
-    console = Console()
-    console.print("[yellow]⚠ This feature requires Cloud Edition[/yellow]")
-    console.print("[dim]Get an API key at: https://aiprove.org[/dim]")
-    console.print("")
-    console.print("Local mode features available now:")
-    console.print("  - devmemory attribution lookup <file>")
-    console.print("  - devmemory sync")
-    console.print("  - devmemory status")
-    # run_stats(days=days, output=output, by_topic=by_topic, by_entity=by_entity, since_commit=since_commit, create_view=create_view, view_name=view_name, list_views=list_views, delete_view=delete_view, quiet=quiet)
+    """Show project statistics via Cloud API."""
+    run_stats(
+        days=days,
+        output=output,
+        by_topic=by_topic,
+        by_entity=by_entity,
+        since_commit=since_commit,
+        create_view=create_view,
+        view_name=view_name,
+        list_views=list_views,
+        delete_view=delete_view,
+        quiet=quiet,
+    )
 
 
 @app.command()
