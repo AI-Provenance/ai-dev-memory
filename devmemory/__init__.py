@@ -1,2 +1,2 @@
-__version__ = "0.1.33"
+__version__ = "0.2.0"
 __app_name__ = "devmemory"
