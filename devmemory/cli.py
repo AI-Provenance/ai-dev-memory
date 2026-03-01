@@ -103,7 +103,7 @@ def search(
 
     console = Console()
     console.print("[yellow]⚠ This feature requires Cloud Edition[/yellow]")
-    console.print("[dim]Get an API key at: https://devmemory.ai[/dim]")
+    console.print("[dim]Get an API key at: https://aiprove.org[/dim]")
     console.print("")
     console.print("Local mode features available now:")
     console.print("  - devmemory attribution lookup <file>")
@@ -132,7 +132,7 @@ def stats(
 
     console = Console()
     console.print("[yellow]⚠ This feature requires Cloud Edition[/yellow]")
-    console.print("[dim]Get an API key at: https://devmemory.ai[/dim]")
+    console.print("[dim]Get an API key at: https://aiprove.org[/dim]")
     console.print("")
     console.print("Local mode features available now:")
     console.print("  - devmemory attribution lookup <file>")
@@ -154,7 +154,7 @@ def add(
 
     console = Console()
     console.print("[yellow]⚠ This feature requires Cloud Edition[/yellow]")
-    console.print("[dim]Get an API key at: https://devmemory.ai[/dim]")
+    console.print("[dim]Get an API key at: https://aiprove.org[/dim]")
     console.print("")
     console.print("Local mode features available now:")
     console.print("  - devmemory attribution lookup <file>")
@@ -173,7 +173,7 @@ def learn(
 
     console = Console()
     console.print("[yellow]⚠ This feature requires Cloud Edition[/yellow]")
-    console.print("[dim]Get an API key at: https://devmemory.ai[/dim]")
+    console.print("[dim]Get an API key at: https://aiprove.org[/dim]")
     console.print("")
     console.print("Local mode features available now:")
     console.print("  - devmemory attribution lookup <file>")
@@ -192,7 +192,7 @@ def context(
 
     console = Console()
     console.print("[yellow]⚠ This feature requires Cloud Edition[/yellow]")
-    console.print("[dim]Get an API key at: https://devmemory.ai[/dim]")
+    console.print("[dim]Get an API key at: https://aiprove.org[/dim]")
     console.print("")
     console.print("Local mode features available now:")
     console.print("  - devmemory attribution lookup <file>")
@@ -214,7 +214,7 @@ def why(
 
     console = Console()
     console.print("[yellow]⚠ This feature requires Cloud Edition[/yellow]")
-    console.print("[dim]Get an API key at: https://devmemory.ai[/dim]")
+    console.print("[dim]Get an API key at: https://aiprove.org[/dim]")
     console.print("")
     console.print("Local mode features available now:")
     console.print("  - devmemory attribution lookup <file>")
@@ -236,7 +236,7 @@ def summarize(
 
     console = Console()
     console.print("[yellow]⚠ This feature requires Cloud Edition[/yellow]")
-    console.print("[dim]Get an API key at: https://devmemory.ai[/dim]")
+    console.print("[dim]Get an API key at: https://aiprove.org[/dim]")
     console.print("")
     console.print("Local mode features available now:")
     console.print("  - devmemory attribution lookup <file>")
@@ -255,7 +255,7 @@ def architecture(
 
     console = Console()
     console.print("[yellow]⚠ This feature requires Cloud Edition[/yellow]")
-    console.print("[dim]Get an API key at: https://devmemory.ai[/dim]")
+    console.print("[dim]Get an API key at: https://aiprove.org[/dim]")
     console.print("")
     console.print("Local mode features available now:")
     console.print("  - devmemory attribution lookup <file>")
@@ -271,7 +271,7 @@ def install(
         False, "--interactive", "-i", help="Interactive mode to select installation mode (local/cloud)."
     ),
     force_mode: str = typer.Option("", "--mode", help="Force installation mode: 'local' or 'cloud'."),
-    api_key: str = typer.Option("", "--api-key", help="API key for cloud mode (get one at devmemory.ai)."),
+    api_key: str = typer.Option("", "--api-key", help="API key for cloud mode (get one at aiprove.org)."),
 ):
     """Set up Git hooks and local storage."""
     run_install(
