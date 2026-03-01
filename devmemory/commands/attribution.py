@@ -4,7 +4,6 @@ from rich.table import Table
 from rich.syntax import Syntax
 
 from devmemory.attribution.config import AttributionConfig
-from devmemory.attribution.redis_storage import AttributionStorage as RedisAttributionStorage
 from devmemory.attribution.sqlite_storage import SQLiteAttributionStorage
 from devmemory.core.config import DevMemoryConfig
 from devmemory.core.logging_config import get_logger
@@ -12,21 +11,16 @@ from devmemory.core.logging_config import get_logger
 log = get_logger(__name__)
 console = Console()
 
-attribution_app = typer.Typer(name="attribution", help="Manage AI attribution (local SQLite or cloud Redis)")
+attribution_app = typer.Typer(name="attribution", help="Manage AI attribution (local SQLite storage)")
 
 
 def _get_storage():
-    """Get the appropriate attribution storage based on configuration."""
+    """Get the attribution storage (SQLite for local mode)."""
     config = DevMemoryConfig.load()
-    attr_config = AttributionConfig.load()
 
-    if config.is_local_mode():
-        # Local mode: Use SQLite
-        sqlite_path = config.get_sqlite_path()
-        return SQLiteAttributionStorage(sqlite_path), "sqlite"
-    else:
-        # Cloud mode: Use Redis
-        return RedisAttributionStorage(attr_config.redis_url), "redis"
+    # Local mode: Use SQLite
+    sqlite_path = config.get_sqlite_path()
+    return SQLiteAttributionStorage(sqlite_path), "sqlite"
 
 
 def _get_namespace() -> str:
@@ -62,70 +56,37 @@ def list_attributions(
         raise typer.Exit(1)
 
     try:
-        if storage_type == "redis":
-            # Redis-specific listing
-            pattern = f"attr:{ns}:*:*"
-            keys = storage.redis.keys(pattern)
+        # SQLite listing
+        conn = storage._get_conn()
+        cursor = conn.execute(
+            "SELECT DISTINCT filepath, commit_sha FROM attributions WHERE namespace = ? LIMIT ?", (ns, limit)
+        )
+        rows = cursor.fetchall()
 
-            if not keys:
-                console.print(f"[yellow]No attributions found for namespace '{ns}'[/yellow]")
-                console.print(f"[dim]Hint: try --namespace default or run devmemory sync first[/dim]")
-                raise typer.Exit(0)
+        if not rows:
+            console.print(f"[yellow]No attributions found for namespace '{ns}'[/yellow]")
+            console.print(f"[dim]Hint: run devmemory sync first[/dim]")
+            raise typer.Exit(0)
 
-            table = Table(title=f"Attributions in '{ns}' ({len(keys)} total)")
-            table.add_column("File", style="cyan")
-            table.add_column("Commit", style="yellow")
-            table.add_column("Ranges", style="green")
-            table.add_column("Author", style="magenta")
+        table = Table(title=f"Attributions in '{ns}' ({len(rows)} files)")
+        table.add_column("File", style="cyan")
+        table.add_column("Commit", style="yellow")
+        table.add_column("Author", style="magenta")
 
-            for key in keys[:limit]:
-                parts = key.split(":")
-                commit_sha = parts[-1]
-                filepath = parts[-2]
-                namespace_from_key = ":".join(parts[1:-2])
-
-                ranges = storage.redis.hgetall(key)
-                range_count = len([k for k in ranges.keys() if k != "_meta"])
-
-                ai_count = sum(1 for v in ranges.values() if "ai" in v)
-                author = "AI" if ai_count > 0 else "Human"
-
-                table.add_row(filepath, commit_sha[:8], str(range_count), author)
-
-            console.print(table)
-            console.print(f"\n[dim]Showing {min(limit, len(keys))} of {len(keys)} keys[/dim]")
-        else:
-            # SQLite listing
-            conn = storage._get_conn()
+        for row in rows:
+            filepath, commit_sha = row
+            # Get author info
             cursor = conn.execute(
-                "SELECT DISTINCT filepath, commit_sha FROM attributions WHERE namespace = ? LIMIT ?", (ns, limit)
+                "SELECT author FROM attributions WHERE namespace = ? AND filepath = ? AND commit_sha = ? LIMIT 1",
+                (ns, filepath, commit_sha),
             )
-            rows = cursor.fetchall()
+            author_row = cursor.fetchone()
+            author = author_row[0] if author_row else "unknown"
 
-            if not rows:
-                console.print(f"[yellow]No attributions found for namespace '{ns}'[/yellow]")
-                console.print(f"[dim]Hint: run devmemory sync first[/dim]")
-                raise typer.Exit(0)
+            table.add_row(filepath, commit_sha[:8], author)
 
-            table = Table(title=f"Attributions in '{ns}' ({len(rows)} files)")
-            table.add_column("File", style="cyan")
-            table.add_column("Commit", style="yellow")
-            table.add_column("Author", style="magenta")
-
-            for row in rows:
-                filepath, commit_sha = row
-                # Get author info
-                cursor = conn.execute(
-                    "SELECT author FROM attributions WHERE namespace = ? AND filepath = ? AND commit_sha = ? LIMIT 1",
-                    (ns, filepath, commit_sha),
-                )
-                author_row = cursor.fetchone()
-                author = author_row[0] if author_row else "unknown"
-
-                table.add_row(filepath, commit_sha[:8], author)
-
-            console.print(table)
-            console.print(f"\n[dim]Showing {len(rows)} files[/dim]")
+        console.print(table)
+        console.print(f"\n[dim]Showing {len(rows)} files[/dim]")
 
     finally:
         storage.close()

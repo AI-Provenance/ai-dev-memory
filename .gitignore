@@ -20,3 +20,4 @@ redisinsight_data/
 .devmemory/knowledge/*
 .devmemory/*
 node_modules/
+docs/

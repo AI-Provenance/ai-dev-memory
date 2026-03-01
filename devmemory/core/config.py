@@ -21,6 +21,7 @@ DEFAULTS = {
     "auto_summarize": False,
     "installation_mode": "cloud",  # "local" or "cloud"
     "sqlite_path": "",  # Path to SQLite database (local mode)
+    "api_key": "",  # API key for cloud mode (aiprove.org)
 }
 
 
@@ -33,6 +34,7 @@ class DevMemoryConfig:
     auto_summarize: bool = DEFAULTS["auto_summarize"]
     installation_mode: str = DEFAULTS["installation_mode"]  # "local" or "cloud"
     sqlite_path: str = DEFAULTS["sqlite_path"]  # Path to SQLite DB (local mode)
+    api_key: str = DEFAULTS["api_key"]  # API key for cloud mode
 
     @staticmethod
     def get_auth_token() -> str:
