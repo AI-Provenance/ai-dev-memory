@@ -6,19 +6,6 @@ import os
 
 
 @pytest.fixture
-def mock_ams_client():
-    with patch("devmemory.core.ams_client.AMSClient") as mock_class:
-        client = MagicMock()
-        mock_class.return_value = client
-        client.health_check.return_value = {"status": "ok"}
-        client.create_memories.return_value = {"count": 1, "ids": ["test-id"]}
-        client.search_memories.return_value = []
-        client.get_memory_count.return_value = 0
-        client.list_sessions.return_value = []
-        yield client
-
-
-@pytest.fixture
 def temp_git_repo(tmp_path):
     repo_path = tmp_path / "test_repo"
     repo_path.mkdir()
@@ -55,21 +42,6 @@ def sample_commit_note():
         files=[],
         prompts={},
         body="Test commit body",
-    )
-
-
-@pytest.fixture
-def sample_memory_result():
-    from devmemory.core.ams_client import MemoryResult
-
-    return MemoryResult(
-        id="mem-123",
-        text="This is a test memory about authentication",
-        score=0.15,
-        topics=["auth", "security"],
-        entities=["AuthService"],
-        memory_type="semantic",
-        created_at="2026-02-21T10:00:00",
     )
 
 
