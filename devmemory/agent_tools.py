@@ -4,7 +4,7 @@ Universal agent memory tools - works with any AI coding agent
 """
 
 from typing import List, Dict, Any, Optional
-from devmemory.core.ams_client import AMSClient
+from devmemory.attribution.cloud_storage import CloudStorage
 from devmemory.core.config import DevMemoryConfig
 
 
@@ -14,7 +14,7 @@ class AgentMemoryTools:
     def __init__(self, namespace: Optional[str] = None):
         """Initialize memory tools for a specific namespace/project"""
         config = DevMemoryConfig.load()
-        self.client = AMSClient(base_url=config.ams_endpoint, auth_token=config.get_auth_token())
+        self.api_key = config.api_key
         self.namespace = namespace or config.get_active_namespace()
 
     def search_project_memory(
@@ -33,25 +33,28 @@ class AgentMemoryTools:
             List of memory results with text, score, topics, etc.
         """
         try:
-            results = self.client.search_memories(
-                text=query,
-                limit=limit,
-                namespace=self.namespace,
-                topics=topics,
-                memory_type=memory_types[0] if memory_types else None,
-            )
+            with CloudStorage(api_key=self.api_key) as client:
+                result = client.search(
+                    query=query,
+                    limit=limit,
+                    namespace=self.namespace,
+                )
 
-            # Convert to universal format
-            return [
-                {
-                    "text": r.text,
-                    "score": r.score,
-                    "topics": r.topics,
-                    "memory_type": r.memory_type,
-                    "source": "devmemory",
-                }
-                for r in results
-            ]
+                if result.get("error"):
+                    return [{"error": result.get("message", "Search failed"), "source": "devmemory"}]
+
+                results = result.get("data", {}).get("results", [])
+
+                return [
+                    {
+                        "text": r.get("text", ""),
+                        "score": r.get("score", 0),
+                        "topics": r.get("topics", []),
+                        "memory_type": r.get("memory_type", "semantic"),
+                        "source": "devmemory",
+                    }
+                    for r in results
+                ]
 
         except Exception as e:
             return [{"error": f"Memory search failed: {e}", "source": "devmemory"}]
@@ -77,12 +80,8 @@ class AgentMemoryTools:
             # Level 3: Commit-Level Details
             context["commits"] = self.search_project_memory(query=task_description, limit=5)
 
-            # Level 4: Coordination Status
-            try:
-                sessions = self.client.list_sessions(namespace=self.namespace)
-                context["coordination"]["active_sessions"] = sessions
-            except:
-                context["coordination"]["active_sessions"] = []
+            # Level 4: Coordination Status (not available in Cloud API)
+            context["coordination"]["active_sessions"] = []
 
         except Exception as e:
             context["error"] = f"Context generation failed: {e}"
@@ -109,8 +108,14 @@ class AgentMemoryTools:
                 "user_id": "agent",
             }
 
-            result = self.client.create_memories([memory])
-            return result.get("count", 0) > 0
+            with CloudStorage(api_key=self.api_key) as client:
+                result = client.add_memory(
+                    text=memory["text"],
+                    memory_type=memory["memory_type"],
+                    topics=memory.get("topics", []),
+                    entities=memory.get("entities", []),
+                )
+            return not result.get("error", False)
 
         except Exception:
             return False
@@ -145,8 +150,14 @@ class AgentMemoryTools:
                 "namespace": self.namespace,
             }
 
-            result = self.client.create_memories([skill_memory])
-            return result.get("count", 0) > 0
+            with CloudStorage(api_key=self.api_key) as client:
+                result = client.add_memory(
+                    text=skill_memory["text"],
+                    memory_type=skill_memory["memory_type"],
+                    topics=skill_memory.get("topics", []),
+                    entities=skill_memory.get("entities", []),
+                )
+            return not result.get("error", False)
 
         except Exception:
             return False

@@ -96,7 +96,7 @@ def _extract_topics_from_subject(subject: str) -> list[str]:
 
 def _extract_tech_entities_from_diff(diff_content: str, local_only: bool = False) -> list[str]:
     if local_only:
-        return []  # Let AMS handle it if configured
+        return []  # Local enrichment only
     entities: set[str] = set()
 
     # Optimized regex for common tech stack patterns
@@ -453,7 +453,7 @@ def format_commit_as_memories(
         prompt_prefix = "Stored AI prompt for this repository. "
         memories.append(
             {
-                "id": pid,  # Use original git-ai prompt_id so attribution can link to AMS prompt
+                "id": pid,  # Use original git-ai prompt_id for attribution
                 "text": prompt_prefix + "\n".join(prompt_text_parts),
                 "memory_type": "semantic",
                 "topics": prompt_topics,
@@ -541,7 +541,7 @@ def generate_commit_summary(
 ) -> dict | None:
     """Generate an LLM-powered summary for a commit.
 
-    Returns a memory dict ready to be stored in AMS, or None if summarization fails.
+    Returns a memory dict ready to be stored, or None if summarization fails.
     Non-blocking: failures are logged but don't raise exceptions.
     """
     try:

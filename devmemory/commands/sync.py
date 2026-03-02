@@ -16,7 +16,7 @@ from devmemory.core.memory_formatter import (
     format_commit_without_ai,
     generate_commit_summary,
 )
-from devmemory.core.ams_client import AMSClient
+from devmemory.attribution.cloud_storage import CloudStorage
 from devmemory.core.memory_formatter import generate_commit_summary
 from devmemory.core.logging_config import get_logger
 from devmemory.attribution import AttributionConfig
@@ -66,7 +66,7 @@ def _is_significant_change(notes: list) -> bool:
     return significant_count >= 2
 
 
-def _trigger_auto_summarization(client: AMSClient, config: DevMemoryConfig, state: SyncState, notes: list, quiet: bool):
+def _trigger_auto_summarization(config: DevMemoryConfig, state: SyncState, notes: list, quiet: bool):
     """Automatically create project and architecture summaries when significant changes are detected"""
 
     if not _is_significant_change(notes):
@@ -100,27 +100,15 @@ def _trigger_auto_summarization(client: AMSClient, config: DevMemoryConfig, stat
         console.print(f"[dim]Detected significant changes - generating summaries...[/dim]")
 
     try:
-        # Generate project summary
-        if should_create_project:
-            project_summary = _generate_project_summary_from_commits(notes, ns, config.user_id)
-            if project_summary:
-                client.create_memories([project_summary])
-                state.mark_project_summary(newest_sha)
-                if not quiet:
-                    console.print(f"[green]✓ Generated project summary for {len(notes)} commits[/green]")
-
-        # Generate architecture summary
-        if should_create_architecture:
-            arch_summary = _generate_architecture_summary_from_commits(notes, ns, config.user_id)
-            if arch_summary:
-                client.create_memories([arch_summary])
-                state.mark_architecture_summary(newest_sha)
-                if not quiet:
-                    console.print(f"[green]✓ Generated architecture summary for {len(notes)} commits[/green]")
+        if should_create_project or should_create_architecture:
+            if not quiet:
+                console.print("[dim]Use `devmemory summarize` or `devmemory architecture` for summaries[/dim]")
+            state.mark_project_summary(newest_sha)
+            state.mark_architecture_summary(newest_sha)
 
     except Exception as e:
         if not quiet:
-            console.print(f"[yellow]⚠ Auto-summarization failed (non-blocking): {e}[/yellow]")
+            console.print(f"[yellow]⚠ Auto-summarization skipped: {e}[/yellow]")
 
 
 def _count_commits_since(last_sha: str, notes: list) -> int:
@@ -331,13 +319,13 @@ def run_sync(
             state.mark_synced(notes[0].sha, count=0)
         raise typer.Exit(0)
 
-    # Check if we're in local mode - skip AMS entirely
+    # Check if we're in local mode - sync to SQLite only
     config = DevMemoryConfig.load()
 
     if config.is_local_mode():
-        # Local mode: Only sync attributions to SQLite, skip AMS
+        # Local mode: Only sync attributions to SQLite
         if not quiet:
-            console.print("[dim]Local mode - skipping AMS sync[/dim]")
+            console.print("[dim]Local mode - storing attributions in SQLite[/dim]")
 
         # Check attribution storage connectivity
         attr_config = None
@@ -365,7 +353,7 @@ def run_sync(
             if not quiet:
                 console.print(f"[yellow]⚠ Attribution storage check failed: {e}[/yellow]")
 
-        # Store line-level attribution only (skip AMS)
+        # Store line-level attribution only
         ns = config.get_active_namespace()
         for n in notes_to_sync:
             if n.has_ai_note:
@@ -416,28 +404,18 @@ def run_sync(
 
         raise typer.Exit(0)
 
-    # Cloud mode: Connect to AMS
-    client = AMSClient(base_url=config.ams_endpoint, auth_token=config.get_auth_token())
-
-    try:
-        client.health_check()
-    except Exception as e:
-        if not quiet:
-            console.print(f"[red]Cannot reach AMS at {config.ams_endpoint}: {e}[/red]")
-            console.print("[dim]Is the Docker stack running? Try: make up[/dim]")
-        raise typer.Exit(1)
-
-    # Local mode: Use SQLite for attribution storage
+    # Note: Cloud mode sync pushes to Cloud API when API key is configured
+    # Use Cloud API commands (search, stats, why, add) for cloud features.
+    # Local mode with SQLite is recommended for attribution storage.
     attr_config = None
     storage_mode = "sqlite"
     attr_storage = None
 
     try:
         attr_config = AttributionConfig.load()
-        sqlite_path = attr_config.db_path
+        sqlite_path = attr_config.sqlite_path
         if sqlite_path:
             attr_storage = SQLiteAttributionStorage(sqlite_path)
-            # Test connection
             attr_storage._get_conn()
             storage_mode = "sqlite"
         else:
@@ -499,57 +477,66 @@ def run_sync(
 
     if dry_run:
         if not quiet:
-            console.print(f"[yellow]Dry run -- {len(all_memories)} memories would be sent.[/yellow]")
+            console.print(f"[yellow]Dry run -- {len(all_memories)} memories would be created.[/yellow]")
         raise typer.Exit(0)
 
     total_synced = 0
-    if all_memories:
+
+    # Cloud mode: Push memories to Cloud API when API key is configured
+    if config.api_key:
         try:
-            with client:
-                # Process in batches to avoid huge payloads
+            from devmemory.attribution.cloud_storage import CloudStorage
+
+            with CloudStorage(api_key=config.api_key) as cloud:
                 for i in range(0, len(all_memories), batch_size):
                     batch = all_memories[i : i + batch_size]
                     if not quiet:
                         console.print(f"  Sending batch {i // batch_size + 1} ({len(batch)} memories)...", end="\r")
-                    client.create_memories(batch)
+
+                    for memory in batch:
+                        cloud.add_memory(
+                            text=memory.get("text", ""),
+                            memory_type=memory.get("memory_type", "semantic"),
+                            topics=memory.get("topics", []),
+                            entities=memory.get("entities", []),
+                        )
                     total_synced += len(batch)
 
-            log.info(f"run_sync: successfully synced {total_synced} memories from {len(notes_to_sync)} commits")
-            if not quiet:
-                console.print(f"\n[green]✓ Successfully synced {total_synced} memories.[/green]")
-        except Exception as e:
-            log.error(f"run_sync: sync failed - {e}")
-            if not quiet:
-                console.print(f"\n[red]✗ Sync failed: {e}[/red]")
-            raise typer.Exit(1)
+                for summary in summary_memories:
+                    cloud.add_memory(
+                        text=summary.get("text", ""),
+                        memory_type="semantic",
+                        topics=summary.get("topics", []),
+                    )
 
-    if summary_memories:
-        try:
-            with client:
-                if not quiet:
-                    console.print(f"[dim]Generating {len(summary_memories)} commit summary(ies)...[/dim]")
-                client.create_memories(summary_memories)
-                total_synced += len(summary_memories)
-                log.debug(f"run_sync: generated {len(summary_memories)} commit summaries")
-                if not quiet:
-                    console.print(f"[green]✓ Generated {len(summary_memories)} commit summary(ies).[/green]")
-        except Exception as e:
-            log.warning(f"run_sync: summarization failed (non-blocking) - {e}")
-            if not quiet:
-                console.print(f"[yellow]⚠ Summarization failed (non-blocking): {e}[/yellow]")
+                for stat in stats_memories:
+                    cloud.add_memory(
+                        text=stat.get("text", ""),
+                        memory_type="semantic",
+                        topics=stat.get("topics", []),
+                    )
 
-    # Store commit stats for team analytics
-    if stats_memories:
-        try:
-            with client:
-                if not quiet:
-                    console.print(f"[dim]Storing commit stats for {len(stats_memories)} commit(s)...[/dim]")
-                client.create_memories(stats_memories)
-                log.debug(f"run_sync: stored {len(stats_memories)} commit stats")
-        except Exception as e:
-            log.warning(f"run_sync: stats storage failed (non-blocking) - {e}")
             if not quiet:
-                console.print(f"[yellow]⚠ Stats storage failed (non-blocking): {e}[/yellow]")
+                console.print(f"\n[green]✓ Synced {total_synced} memories to Cloud API.[/green]")
+        except Exception as e:
+            if not quiet:
+                console.print(f"\n[yellow]⚠ Cloud sync failed: {e}[/yellow]")
+                console.print("[dim]Continuing with local storage...[/dim]")
+    else:
+        total_synced = len(all_memories)
+
+    # Store attributions locally (SQLite) - always
+    if not quiet:
+        if config.api_key:
+            console.print(f"[green]✓ Stored {len(all_memories)} memories locally.[/green]")
+        else:
+            console.print(
+                f"[green]✓ Prepared {total_synced} memories for local storage (no API key - use 'devmemory config set api_key' for cloud sync).[/green]"
+            )
+        if summary_memories:
+            console.print(f"[dim]Generated {len(summary_memories)} commit summaries.[/dim]")
+        if stats_memories:
+            console.print(f"[dim]Prepared {len(stats_memories)} commit stats.[/dim]")
 
     # Store line-level attribution for production bug attribution
     if notes_to_sync and storage_mode != "none" and attr_storage:
@@ -612,7 +599,7 @@ def run_sync(
 
     # Auto-summarization for project and architecture levels
     if config.auto_summarize and len(notes_to_sync) >= 3:  # Only trigger for significant batches
-        _trigger_auto_summarization(client=client, config=config, state=state, notes=notes_to_sync, quiet=quiet)
+        _trigger_auto_summarization(config=config, state=state, notes=notes_to_sync, quiet=quiet)
 
     if notes_to_sync:
         newest_sha = notes_to_sync[0].sha

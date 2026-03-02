@@ -11,7 +11,6 @@ from rich.table import Table
 from rich.text import Text
 
 from devmemory.core.config import DevMemoryConfig
-from devmemory.core.ams_client import AMSClient, MemoryResult
 from devmemory.core.llm_client import LLMError, call_llm, get_llm_config
 import tiktoken
 

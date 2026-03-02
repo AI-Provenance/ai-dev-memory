@@ -5,7 +5,7 @@ Enriches Sentry events with AI attribution data from DevMemory storage.
 
 Supports two modes:
 - Local mode: Reads from local SQLite database
-- Cloud mode: Calls AMS API for attribution data
+- Cloud mode: Calls Cloud API (aiprove.org) for attribution data
 
 Usage:
     from devmemory.sentry import create_before_send
@@ -17,7 +17,7 @@ Usage:
 
 In production:
     - Local mode: Set DEVMEMORY_MODE=local and ensure SQLite DB exists
-    - Cloud mode: Set DEVMEMORY_AMS_URL (e.g., https://ams.internal)
+    - Cloud mode: Set API_KEY (get at https://aiprove.org)
     - repo_id is auto-detected from devmemory config if available, otherwise from DEVMEMORY_REPO_ID
 
 Installation:
@@ -135,13 +135,14 @@ def _get_sqlite_path() -> str:
     return ".devmemory/attributions.db"
 
 
-def _get_ams_url() -> str:
-    """
-    Get AMS URL from environment variable.
+def _get_api_url() -> str:
+    """Get Cloud API URL from environment variable."""
+    return os.environ.get("API_URL", "https://aiprove.org/api")
 
-    In production, this MUST be set via DEVMEMORY_AMS_URL env var.
-    """
-    return os.environ.get("DEVMEMORY_AMS_URL", "")
+
+def _get_api_key() -> str:
+    """Get API key from environment variable."""
+    return os.environ.get("API_KEY", "")
 
 
 class DevMemoryOptions:
@@ -149,7 +150,8 @@ class DevMemoryOptions:
 
     def __init__(
         self,
-        ams_url: Optional[str] = None,
+        api_url: Optional[str] = None,
+        api_key: Optional[str] = None,
         repo_id: Optional[str] = None,
         timeout: float = 2.0,
         mode: Optional[str] = None,
@@ -159,14 +161,16 @@ class DevMemoryOptions:
         Initialize options.
 
         Args:
-            ams_url: URL of the attribution API. Required for cloud mode.
+            api_url: URL of the Cloud API. Required for cloud mode.
+            api_key: API key for Cloud API. Required for cloud mode.
             repo_id: Repository identifier. Auto-detected if not provided.
             timeout: Request timeout in seconds.
             mode: "local" or "cloud". Auto-detected if not provided.
             sqlite_path: Path to SQLite database for local mode.
         """
         self.mode = mode or _get_mode()
-        self.ams_url = ams_url or _get_ams_url()
+        self.api_url = api_url or _get_api_url()
+        self.api_key = api_key or _get_api_key()
         self.repo_id = repo_id or _get_repo_id()
         self.timeout = timeout
         self.sqlite_path = sqlite_path or _get_sqlite_path()
@@ -174,8 +178,8 @@ class DevMemoryOptions:
     def validate(self) -> bool:
         """Check if configuration is valid."""
         if self.mode == "cloud":
-            if not self.ams_url:
-                log.warning("DevMemory Sentry: Cloud mode requires AMS_URL")
+            if not self.api_url:
+                log.warning("DevMemory Sentry: Cloud mode requires Cloud API URL")
                 return False
             if not self.repo_id:
                 log.warning("DevMemory Sentry: repo_id is required")
@@ -191,14 +195,14 @@ class DevMemoryOptions:
         """Get storage information for debugging."""
         return {
             "mode": self.mode,
-            "ams_url": self.ams_url,
+            "api_url": self.api_url,
             "repo_id": self.repo_id,
             "sqlite_path": self.sqlite_path if self.mode == "local" else None,
         }
 
 
 def create_before_send(
-    ams_url: Optional[str] = None,
+    api_url: Optional[str] = None,
     repo_id: Optional[str] = None,
     timeout: float = 2.0,
     mode: Optional[str] = None,
@@ -208,7 +212,7 @@ def create_before_send(
     Create a Sentry before_send hook that enriches events with AI attribution.
 
     Args:
-        ams_url: URL of the DevMemory AMS API (cloud mode)
+        api_url: URL of the DevMemory Cloud API (cloud mode)
         repo_id: Repository identifier (maps to namespace)
         timeout: Request timeout in seconds (default: 2s)
         mode: "local" or "cloud". Auto-detected if not provided.
@@ -235,14 +239,14 @@ def create_before_send(
         init(
             dsn=os.environ["SENTRY_DSN"],
             before_send=create_before_send(
-                ams_url="https://ams.internal",
+                api_url="https://ams.internal",
                 repo_id="my-repo",
                 mode="cloud"
             )
         )
     """
     options = DevMemoryOptions(
-        ams_url=ams_url,
+        api_url=api_url,
         repo_id=repo_id,
         timeout=timeout,
         mode=mode,
@@ -296,7 +300,8 @@ def create_before_send(
                 )
             else:
                 attribution = _lookup_from_api(
-                    ams_url=options.ams_url,
+                    api_url=options.api_url,
+                    api_key=options.api_key,
                     repo_id=options.repo_id,
                     filepath=filepath,
                     lineno=lineno,
@@ -391,21 +396,23 @@ def _lookup_from_sqlite(
 
 
 def _lookup_from_api(
-    ams_url: str,
+    api_url: str,
+    api_key: str,
     repo_id: str,
     filepath: str,
     lineno: int,
     timeout: float,
 ) -> Optional[dict]:
-    """Call DevMemory attribution API (synchronous)."""
+    """Call DevMemory Cloud API for attribution (synchronous)."""
     try:
         import requests
     except ImportError:
         return None
 
-    url = f"{ams_url}/api/v1/attribution/lookup"
+    url = f"{api_url}/api/v1/attribution/lookup"
 
     try:
+        headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
         response = requests.post(
             url,
             json={
@@ -413,6 +420,7 @@ def _lookup_from_api(
                 "filepath": filepath,
                 "lineno": lineno,
             },
+            headers=headers,
             timeout=timeout,
         )
 

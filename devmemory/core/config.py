@@ -14,32 +14,36 @@ CONFIG_DIR = Path.home() / ".devmemory"
 CONFIG_FILE = CONFIG_DIR / "config.json"
 
 DEFAULTS = {
-    "ams_endpoint": os.environ.get("AMS_ENDPOINT", "http://localhost:8000"),
-    "mcp_endpoint": os.environ.get("MCP_ENDPOINT", "http://localhost:9050"),
+    "api_url": os.environ.get("API_URL", "https://aiprove.org/api"),
+    "api_key": os.environ.get("API_KEY", ""),
     "namespace": "default",
     "user_id": "",
     "auto_summarize": False,
     "installation_mode": "cloud",  # "local" or "cloud"
     "sqlite_path": "",  # Path to SQLite database (local mode)
-    "api_key": "",  # API key for cloud mode (aiprove.org)
 }
 
 
 @dataclass
 class DevMemoryConfig:
-    ams_endpoint: str = DEFAULTS["ams_endpoint"]
-    mcp_endpoint: str = DEFAULTS["mcp_endpoint"]
+    api_url: str = DEFAULTS["api_url"]
+    api_key: str = DEFAULTS["api_key"]
     namespace: str = DEFAULTS["namespace"]
     user_id: str = DEFAULTS["user_id"]
     auto_summarize: bool = DEFAULTS["auto_summarize"]
     installation_mode: str = DEFAULTS["installation_mode"]  # "local" or "cloud"
     sqlite_path: str = DEFAULTS["sqlite_path"]  # Path to SQLite DB (local mode)
-    api_key: str = DEFAULTS["api_key"]  # API key for cloud mode
+
+    # Legacy support (deprecated - use api_key instead)
+    @property
+    def ams_endpoint(self) -> str:
+        """Legacy property - returns API URL."""
+        return self.api_url
 
     @staticmethod
     def get_auth_token() -> str:
-        """Get AMS auth token from environment variable (never from config)."""
-        return os.environ.get("AMS_AUTH_TOKEN", "")
+        """Legacy method - returns API key."""
+        return os.environ.get("API_KEY", "")
 
     @classmethod
     def load(cls) -> DevMemoryConfig:
@@ -72,10 +76,10 @@ class DevMemoryConfig:
                     log.warning(f"load: failed to parse local config - {e}")
 
         # 3. Environment variables override saved config
-        if os.environ.get("AMS_ENDPOINT"):
-            config.ams_endpoint = os.environ["AMS_ENDPOINT"]
-        if os.environ.get("MCP_ENDPOINT"):
-            config.mcp_endpoint = os.environ["MCP_ENDPOINT"]
+        if os.environ.get("API_KEY"):
+            config.api_key = os.environ["API_KEY"]
+        if os.environ.get("API_URL"):
+            config.api_url = os.environ["API_URL"]
 
         return config
 
@@ -115,7 +119,7 @@ class DevMemoryConfig:
         return self.installation_mode == "local"
 
     def is_cloud_mode(self) -> bool:
-        """Check if running in cloud mode (Redis + AMS)."""
+        """Check if running in cloud mode (Cloud API)."""
         return self.installation_mode == "cloud"
 
     def get_sqlite_path(self) -> str:

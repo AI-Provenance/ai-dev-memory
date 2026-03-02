@@ -56,13 +56,13 @@ def show():
                 pass
         table.add_row(key, display, source)
 
-    # Add AMS_AUTH_TOKEN row (always from environment)
-    auth_token = os.environ.get("AMS_AUTH_TOKEN", "")
-    if auth_token:
-        display = f"[dim]{auth_token[:4]}...{auth_token[-4:]}[/dim]" if len(auth_token) > 8 else "[dim]***[/dim]"
+    # Add API_KEY row (from config or environment)
+    api_key = config.api_key or os.environ.get("API_KEY", "")
+    if api_key:
+        display = f"[dim]{api_key[:4]}...{api_key[-4:]}[/dim]" if len(api_key) > 8 else "[dim]***[/dim]"
     else:
         display = "[dim]not set[/dim]"
-    table.add_row("ams_auth_token", display, "[yellow]env[/yellow]")
+    table.add_row("api_key", display, "[yellow]config/env[/yellow]")
 
     console.print(table)
 
@@ -80,12 +80,10 @@ def set_value(
 ):
     config = DevMemoryConfig.load()
 
-    # Prevent setting auth token from config - must use environment variable
-    if key == "ams_auth_token":
-        console.print(
-            "[red]ams_auth_token cannot be set via config. Use AMS_AUTH_TOKEN environment variable instead.[/red]"
-        )
-        raise typer.Exit(1)
+    # Prevent setting api_key from config - must use config set or environment variable
+    if key == "api_key":
+        console.print("[yellow]api_key is set via 'devmemory config set api_key YOUR_KEY' or API_KEY env var[/yellow]")
+        raise typer.Exit(0)
 
     try:
         field_type = config.__dataclass_fields__.get(key)

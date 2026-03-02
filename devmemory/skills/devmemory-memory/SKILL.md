@@ -56,7 +56,7 @@ For anything that future agents should know about, **update the knowledge files 
 ```markdown
 ---
 topics: [architecture, decisions]
-entities: [Redis, AMS]
+entities: [SQLite, Cloud API]
 ---
 
 ## Section Title
