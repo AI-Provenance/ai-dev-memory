@@ -5,21 +5,21 @@ from devmemory.core.git_ai_parser import CommitNote, FileAttribution, PromptData
 def test_format_commit_as_memories_produces_layers(monkeypatch):
     diff = "\n".join(
         [
-            "diff --git a/devmemory/core/ams_client.py b/devmemory/core/ams_client.py",
+            "diff --git a/devmemory/core/cloud_storage.py b/devmemory/core/cloud_storage.py",
             "index 0000000..1111111 100644",
-            "--- a/devmemory/core/ams_client.py",
-            "+++ b/devmemory/core/ams_client.py",
+            "--- a/devmemory/core/cloud_storage.py",
+            "+++ b/devmemory/core/cloud_storage.py",
             "+from httpx import Client",
-            "+class AMSClient:",
+            "+class CloudStorage:",
             "+    pass",
         ]
     )
 
     def fake_per_file_diffs(sha):
-        return {"devmemory/core/ams_client.py": diff}
+        return {"devmemory/core/cloud_storage.py": diff}
 
     def fake_commit_diff(sha):
-        return "devmemory/core/ams_client.py | 3 ++"
+        return "devmemory/core/cloud_storage.py | 3 ++"
 
     monkeypatch.setattr(memory_formatter, "get_per_file_diffs", fake_per_file_diffs)
     monkeypatch.setattr(memory_formatter, "get_commit_diff", fake_commit_diff)
@@ -51,14 +51,14 @@ def test_format_commit_as_memories_produces_layers(monkeypatch):
         sha="abc123def456",
         author_name="Test User",
         author_email="test@example.com",
-        subject="feat: add AMS client",
+        subject="feat: add CloudStorage client",
         date="2026-02-10T12:00:00+00:00",
-        files=[FileAttribution(filepath="devmemory/core/ams_client.py", prompt_lines={"aaa111": ["1-3"]})],
+        files=[FileAttribution(filepath="devmemory/core/cloud_storage.py", prompt_lines={"aaa111": ["1-3"]})],
         has_ai_note=True,
         raw_note="",
         prompts={"aaa111": prompt},
         stats=stats,
-        body="Adds an HTTP client for Redis AMS.",
+        body="Adds an HTTP client for Cloud API.",
     )
 
     memories = memory_formatter.format_commit_as_memories(note, namespace="ns", user_id="user")
@@ -67,9 +67,8 @@ def test_format_commit_as_memories_produces_layers(monkeypatch):
     assert "semantic" in types
     assert "episodic" in types
     summary = memories[0]["text"]
-    assert "feat: add AMS client" in summary
+    assert "feat: add CloudStorage client" in summary
     assert "AI contribution" in summary
     per_file = [m for m in memories if m["memory_type"] == "episodic"][0]
-    assert "devmemory/core/ams_client.py" in per_file["text"]
-    assert "class AMSClient" in per_file["text"]
-
+    assert "devmemory/core/cloud_storage.py" in per_file["text"]
+    assert "class CloudStorage" in per_file["text"]

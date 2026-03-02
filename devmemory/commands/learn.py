@@ -9,7 +9,7 @@ from rich.console import Console
 from rich.table import Table
 
 from devmemory.core.config import DevMemoryConfig
-from devmemory.core.ams_client import AMSClient
+from devmemory.attribution.cloud_storage import CloudStorage
 
 console = Console()
 
@@ -201,18 +201,16 @@ def run_learn(
         console.print("[yellow]No memories to sync.[/yellow]")
         return
 
-    client = AMSClient(base_url=config.ams_endpoint, auth_token=config.get_auth_token())
-
-    try:
-        client.health_check()
-    except Exception as e:
-        console.print(f"[red]Cannot reach AMS at {config.ams_endpoint}: {e}[/red]")
-        raise typer.Exit(1)
-
-    try:
-        client.create_memories(all_memories, deduplicate=True)
-    except Exception as e:
-        console.print(f"[red]Failed to sync knowledge: {e}[/red]")
-        raise typer.Exit(1)
+    with CloudStorage(api_key=config.api_key) as client:
+        for memory in all_memories:
+            result = client.add_memory(
+                text=memory.get("text", ""),
+                memory_type=memory.get("memory_type", "semantic"),
+                topics=memory.get("topics", []),
+                entities=memory.get("entities", []),
+            )
+            if result.get("error"):
+                console.print(f"[red]Failed to sync knowledge: {result.get('message')}[/red]")
+                raise typer.Exit(1)
 
     console.print(f"\n[bold green]Synced {len(all_memories)} memories from knowledge files.[/bold green]")

@@ -61,7 +61,7 @@ def sync(
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Minimal output (single summary line)."),
     batch_size: int = typer.Option(50, "--batch-size", help="Number of memories per sync request."),
     local_enrichment: bool = typer.Option(
-        True, "--local-enrichment/--ams-enrichment", help="Whether to perform enrichment locally or rely on AMS."
+        True, "--local-enrichment", help="Perform AI enrichment locally (vs cloud API)."
     ),
     all_branches: bool = typer.Option(False, "--all-branches", help="Sync commits from all local branches."),
 ):
@@ -118,9 +118,7 @@ def stats(
     by_topic: bool = typer.Option(False, "--by-topic", help="Group stats by topic."),
     by_entity: bool = typer.Option(False, "--by-entity", help="Group stats by entity."),
     since_commit: str = typer.Option("", "--since", help="Show stats since a specific commit SHA."),
-    create_view: bool = typer.Option(
-        False, "--create-view", help="Create a persistent AMS summary view from these stats."
-    ),
+    create_view: bool = typer.Option(False, "--create-view", help="Create a persistent summary view from these stats."),
     view_name: str = typer.Option("", "--view-name", help="Name for the summary view (if --create-view)."),
     list_views: bool = typer.Option(False, "--list-views", help="List all stats summary views."),
     delete_view: str = typer.Option("", "--delete-view", help="Delete a specific summary view by name."),
@@ -158,18 +156,8 @@ def learn(
     path: str = typer.Argument("", help="Path to knowledge directory (default: .devmemory/knowledge/)."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be synced without sending."),
 ):
-    """Sync knowledge files (markdown) into the memory store. (Cloud Edition - Coming Soon)"""
-    from rich.console import Console
-
-    console = Console()
-    console.print("[yellow]⚠ This feature requires Cloud Edition[/yellow]")
-    console.print("[dim]Get an API key at: https://aiprove.org[/dim]")
-    console.print("")
-    console.print("Local mode features available now:")
-    console.print("  - devmemory attribution lookup <file>")
-    console.print("  - devmemory sync")
-    console.print("  - devmemory status")
-    # run_learn(path=path, dry_run=dry_run)
+    """Sync knowledge files (markdown) into the memory store."""
+    run_learn(path=path, dry_run=dry_run)
 
 
 @app.command()
@@ -177,18 +165,8 @@ def context(
     output: str = typer.Option("", "--output", "-o", help="Output file path (default: .devmemory/CONTEXT.md)."),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="No terminal output, just write the file."),
 ):
-    """Generate a context briefing from memory based on current git state. (Cloud Edition - Coming Soon)"""
-    from rich.console import Console
-
-    console = Console()
-    console.print("[yellow]⚠ This feature requires Cloud Edition[/yellow]")
-    console.print("[dim]Get an API key at: https://aiprove.org[/dim]")
-    console.print("")
-    console.print("Local mode features available now:")
-    console.print("  - devmemory attribution lookup <file>")
-    console.print("  - devmemory sync")
-    console.print("  - devmemory status")
-    # run_context(output=output, quiet=quiet)
+    """Generate a context briefing from memory based on current git state."""
+    run_context(output=output, quiet=quiet)
 
 
 @app.command()

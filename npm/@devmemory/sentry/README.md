@@ -34,8 +34,8 @@ That's it! Auto-detects:
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `repoId` | string | auto-detect | Repository ID |
-| `mode` | `"local"` \| `"cloud"` | `local` | Local (SQLite) or Cloud (AMS) |
-| `apiUrl` | string | env | AMS API URL (cloud mode) |
+| `mode` | `"local"` \| `"cloud"` | `local` | Local (SQLite) or Cloud (API) |
+| `apiUrl` | string | env | Cloud API URL (cloud mode) |
 | `sqlitePath` | string | `.devmemory/attributions.db` | SQLite path |
 | `timeout` | number | 2000 | Request timeout (ms) |
 
@@ -63,7 +63,7 @@ Contexts:
 | Mode | Storage | Use Case |
 |------|---------|----------|
 | `local` | SQLite file | Development, no external services |
-| `cloud` | AMS API | Production, team shared data |
+| `cloud` | Cloud API (aiprove.org) | Production, team shared data |
 
 ## Setup
 

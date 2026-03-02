@@ -158,7 +158,7 @@ devmemory stats                    # AI vs Human code stats
 | `devmemory stats` | AI vs Human code contribution |
 | `devmemory attribution lookup <file>` | See who wrote each line |
 | `devmemory attribution history <file>` | View attribution history |
-| `devmemory sync` | Sync Git AI notes to AMS |
+| `devmemory sync` | Sync Git AI notes to Cloud |
 | `devmemory status` | Check system health |
 
 ---

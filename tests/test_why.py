@@ -197,9 +197,17 @@ def test_synthesize_why_uses_verbose_prompt(monkeypatch):
 
 
 def _make_fake_memory(id: str, text: str, score: float, memory_type: str = "semantic"):
-    from devmemory.core.ams_client import MemoryResult
+    class FakeMemory:
+        def __init__(self, id, text, score, topics=None, entities=None, memory_type="semantic", created_at=None):
+            self.id = id
+            self.text = text
+            self.score = score
+            self.topics = topics or []
+            self.entities = entities or []
+            self.memory_type = memory_type
+            self.created_at = created_at
 
-    return MemoryResult(
+    return FakeMemory(
         id=id,
         text=text,
         score=score,

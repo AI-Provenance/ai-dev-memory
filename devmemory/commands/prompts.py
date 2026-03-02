@@ -6,11 +6,11 @@ from rich.table import Table
 from rich.syntax import Syntax
 
 from devmemory.core.config import DevMemoryConfig
-from devmemory.core.ams_client import AMSClient, MemoryResult
+from devmemory.attribution.cloud_storage import CloudStorage
 
 console = Console()
 
-prompts_app = typer.Typer(name="prompts", help="Manage prompt memories in AMS")
+prompts_app = typer.Typer(name="prompts", help="Browse prompt memories")
 
 
 @prompts_app.callback(invoke_without_command=True)
@@ -19,18 +19,10 @@ def default_prompts(
     limit: int = typer.Option(50, "--limit", "-l", help="Max prompt memories to list."),
     namespace: str = typer.Option(None, "--namespace", "-n", help="Filter by namespace."),
 ):
-    """List prompt memories stored in AMS (newest first)."""
+    """List prompt memories stored (newest first)."""
     if ctx.invoked_subcommand:
         return
     run_prompts(limit=limit, namespace=namespace)
-
-
-def _sort_by_created(results: list[MemoryResult]) -> list[MemoryResult]:
-    def key(r: MemoryResult) -> tuple:
-        created = (r.created_at or "").strip()
-        return (0 if created else 1, created)
-
-    return sorted(results, key=key, reverse=True)
 
 
 def run_prompts(
@@ -43,116 +35,80 @@ def run_prompts(
         ns = namespace or None
     else:
         ns = namespace or config.get_active_namespace()
-    base_url = config.ams_endpoint or "http://localhost:8000"
-    client = AMSClient(base_url=base_url, auth_token=config.get_auth_token())
 
-    try:
-        client.health_check()
-    except Exception as e:
-        console.print(f"[red]AMS unreachable at {base_url}: {e}[/red]")
+    if not config.api_key:
+        console.print("[yellow]API key required. Run: devmemory config set api_key YOUR_KEY[/yellow]")
         raise typer.Exit(1)
 
-    results = client.search_memories(
-        text="",
-        limit=min(limit, 200),
-        namespace=ns,
-        topics=["prompt"],
-    )
-    if not results:
-        results = client.search_memories(
-            text="Stored AI prompt",
-            limit=min(limit * 2, 200),
+    with CloudStorage(api_key=config.api_key) as client:
+        result = client.search(
+            query="prompt",
+            limit=min(limit, 200),
             namespace=ns,
-            topics=["prompt"],
         )
-    real_prompt_prefix = "Stored AI prompt for this repository."
-    real_prompts = [r for r in results if (r.text or "").strip().startswith(real_prompt_prefix)]
-    other_prompt_mentions = [
-        r
-        for r in results
-        if r not in real_prompts and ("Stored AI prompt" in (r.text or "") or "Prompt to" in (r.text or ""))
-    ]
-    results = _sort_by_created(real_prompts)[:limit]
 
-    if not results:
-        console.print("[yellow]No stored user/assistant prompt memories in AMS.[/yellow]")
-        if other_prompt_mentions:
-            console.print(
-                f"[dim]Found {len(other_prompt_mentions)} other memory(ies) that mention 'prompt' (code/commits), but none are the actual prompts from git-ai.[/dim]"
-            )
-        console.print("[dim]Ensure: git-ai config set prompt_storage notes, then devmemory sync --all[/dim]")
-        raise typer.Exit(0)
+        if result.get("error"):
+            console.print(f"[red]Search failed: {result.get('message')}[/red]")
+            raise typer.Exit(1)
 
-    def _excerpt(text: str, max_len: int = 200) -> str:
-        t = (text or "").strip()
-        for marker in ("Stored AI prompt", "Prompt to"):
-            if marker in t:
-                start = t.find(marker)
-                chunk = t[start:].replace("\n", " ").strip()
-                if len(chunk) > max_len:
-                    chunk = chunk[:max_len] + "..."
-                return chunk
-        one = t.replace("\n", " ").strip()
-        return one[:max_len] + ("..." if len(one) > max_len else "")
+        memories = result.get("data", {}).get("results", [])
 
-    table = Table(title=f"Prompt memories (newest first, namespace={ns or 'default'})")
-    table.add_column("created_at", style="dim", width=28)
-    table.add_column("id", style="cyan", width=14)
-    table.add_column("text (excerpt)", style="white", max_width=70, overflow="fold")
+        if not memories:
+            console.print("[yellow]No prompt memories found.[/yellow]")
+            raise typer.Exit(0)
 
-    for r in results:
-        created = (r.created_at or "")[:28]
-        excerpt = _excerpt(r.text)
-        table.add_row(created, (r.id or "")[:14], excerpt)
+        table = Table(title=f"Prompt memories (namespace={ns or 'default'})")
+        table.add_column("id", style="cyan", width=14)
+        table.add_column("text (excerpt)", style="white", max_width=70, overflow="fold")
 
-    console.print(table)
-    console.print(f"[dim]{len(results)} prompt memory(ies) shown.[/dim]")
+        for r in memories[:limit]:
+            text = r.get("text", "")[:70]
+            table.add_row(r.get("id", "")[:14], text)
+
+        console.print(table)
+        console.print(f"\n[dim]Showing {min(len(memories), limit)} of {len(memories)} results[/dim]")
 
 
-@prompts_app.command("get")
-def get_prompt(
-    prompt_id: str = typer.Argument(..., help="Prompt ID to retrieve"),
-    namespace: str = typer.Option(None, "--namespace", "-n", help="Namespace"),
-):
-    """Get a specific prompt by ID."""
+def run_search_prompts(
+    query: str,
+    limit: int = 20,
+    namespace: str = "",
+) -> None:
+    """Search prompt memories by query."""
     config = DevMemoryConfig.load()
     ns = namespace or config.get_active_namespace()
-    base_url = config.ams_endpoint or "http://localhost:8000"
-    client = AMSClient(base_url=base_url, auth_token=config.get_auth_token())
 
-    try:
-        client.health_check()
-    except Exception as e:
-        console.print(f"[red]AMS unreachable at {base_url}: {e}[/red]")
+    if not config.api_key:
+        console.print("[yellow]API key required. Run: devmemory config set api_key YOUR_KEY[/yellow]")
         raise typer.Exit(1)
 
-    # First try exact ID match
-    results = client.search_memories(text="", limit=100, namespace=ns)
+    with CloudStorage(api_key=config.api_key) as client:
+        result = client.search(
+            query=query,
+            limit=limit,
+            namespace=ns,
+        )
 
-    memory = None
-    for r in results:
-        if r.id == prompt_id:
-            memory = r
-            break
+        if result.get("error"):
+            console.print(f"[red]Search failed: {result.get('message')}[/red]")
+            raise typer.Exit(1)
 
-    # If not found, search by ID in text (for prompt_ids stored in content)
-    if not memory:
-        results = client.search_memories(text=prompt_id, limit=20, namespace=ns)
-        for r in results:
-            if prompt_id in (r.text or ""):
-                memory = r
-                break
+        memories = result.get("data", {}).get("results", [])
 
-    if not memory:
-        console.print(f"[red]Prompt with ID '{prompt_id}' not found in AMS[/red]")
-        console.print("[dim]Note: Prompt may not be synced to AMS yet. Run 'devmemory sync' to sync prompts.[/dim]")
-        raise typer.Exit(1)
+        if not memories:
+            console.print(f"[yellow]No results for '{query}'.[/yellow]")
+            raise typer.Exit(0)
 
-    console.print(f"\n[bold]Prompt ID:[/bold] {memory.id}")
-    console.print(f"[bold]Created:[/bold] {memory.created_at}")
-    console.print(f"[bold]Namespace:[/bold] {memory.namespace}")
-    console.print(f"[bold]Topics:[/bold] {', '.join(memory.topics) if memory.topics else '-'}")
-    console.print()
+        for r in memories:
+            console.print(f"\n[cyan]{r.get('id', 'unknown')[:12]}[/cyan]")
+            console.print(r.get("text", "")[:500])
 
-    syntax = Syntax(memory.text or "", "markdown", theme="monokai", line_numbers=True)
-    console.print(syntax)
+
+@prompts_app.command("search")
+def search_prompts(
+    query: str = typer.Argument(..., help="Search query"),
+    limit: int = typer.Option(20, "--limit", "-l", help="Max results"),
+    namespace: str = typer.Option(None, "--namespace", "-n", help="Filter by namespace"),
+):
+    """Search prompt memories by query."""
+    run_search_prompts(query=query, limit=limit, namespace=namespace)
