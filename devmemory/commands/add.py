@@ -1,19 +1,16 @@
-import hashlib
+"""Add command - Cloud API version."""
 
+from typing import Optional
 import typer
 from rich.console import Console
 from rich.panel import Panel
 
 from devmemory.core.config import DevMemoryConfig
-from devmemory.core.ams_client import AMSClient
+from devmemory.attribution.cloud_storage import CloudStorage
 
 console = Console()
 
 VALID_TYPES = ("semantic", "episodic")
-
-
-def _generate_id(text: str) -> str:
-    return hashlib.sha256(f"manual:{text}".encode()).hexdigest()[:24]
 
 
 def run_add(
@@ -23,13 +20,28 @@ def run_add(
     entities: list[str] | None = None,
     interactive: bool = False,
 ):
+    """Add a memory via Cloud API."""
     config = DevMemoryConfig.load()
-    client = AMSClient(base_url=config.ams_endpoint, auth_token=config.get_auth_token())
+
+    if not config.api_key:
+        console.print("[yellow]⚠ This feature requires Cloud Edition[/yellow]")
+        console.print("[dim]Get an API key at: https://aiprove.org[/dim]")
+        console.print("")
+        console.print("Local mode features available now:")
+        console.print("  - devmemory attribution lookup <file>")
+        console.print("  - devmemory sync")
+        console.print("  - devmemory status")
+        raise typer.Exit(0)
+
+    client = CloudStorage(api_key=config.api_key)
 
     try:
-        client.health_check()
+        health = client.health_check()
+        if health.get("status") != "ok":
+            console.print(f"[red]Cloud API unhealthy[/red]")
+            raise typer.Exit(1)
     except Exception as e:
-        console.print(f"[red]Cannot reach AMS at {config.ams_endpoint}: {e}[/red]")
+        console.print(f"[red]Cannot reach Cloud API: {e}[/red]")
         raise typer.Exit(1)
 
     if interactive or not text:
@@ -42,47 +54,37 @@ def run_add(
         console.print(f"[red]Invalid memory type '{memory_type}'. Must be one of: {', '.join(VALID_TYPES)}[/red]")
         raise typer.Exit(1)
 
-    memory = {
-        "id": _generate_id(text),
-        "text": text,
-        "memory_type": memory_type,
-        "namespace": config.get_active_namespace(),
-    }
-    if topics:
-        memory["topics"] = topics
-    if entities:
-        memory["entities"] = entities
-    if config.user_id:
-        memory["user_id"] = config.user_id
-
     try:
-        client.create_memories([memory])
+        response = client.add_memory(text, memory_type, topics, entities)
+
+        if response.get("error"):
+            console.print(f"[red]Add failed: {response['error']}[/red]")
+            raise typer.Exit(1)
+
+        console.print(
+            Panel(
+                text,
+                title=f"[bold green]Stored[/bold green] [{memory_type}]",
+                border_style="green",
+                padding=(0, 1),
+            )
+        )
+        if topics:
+            console.print(f"  [dim]Topics: {', '.join(topics)}[/dim]")
+        if entities:
+            console.print(f"  [dim]Entities: {', '.join(entities)}[/dim]")
+        console.print(f"[dim]Quota remaining: {response.get('quota_remaining', 'N/A')}[/dim]")
+
     except Exception as e:
         console.print(f"[red]Failed to store memory: {e}[/red]")
         raise typer.Exit(1)
-
-    console.print(
-        Panel(
-            text,
-            title=f"[bold green]Stored[/bold green] [{memory_type}]",
-            border_style="green",
-            padding=(0, 1),
-        )
-    )
-    if topics:
-        console.print(f"  [dim]Topics: {', '.join(topics)}[/dim]")
-    if entities:
-        console.print(f"  [dim]Entities: {', '.join(entities)}[/dim]")
 
 
 def _interactive_prompt(
     default_type: str = "semantic",
     default_topics: list[str] | None = None,
     default_entities: list[str] | None = None,
-) -> str | None:
-    config = DevMemoryConfig.load()
-    client = AMSClient(base_url=config.ams_endpoint, auth_token=config.get_auth_token())
-
+) -> Optional[str]:
     console.print("[bold]Add a memory[/bold]\n")
     console.print("[dim]Types of knowledge to store:[/dim]")
     console.print("  - Architecture decisions and rationale")
@@ -122,19 +124,6 @@ def _interactive_prompt(
     )
     entities = [e.strip() for e in entities_input.split(",") if e.strip()] if entities_input else []
 
-    memory = {
-        "id": _generate_id(text),
-        "text": text,
-        "memory_type": type_input,
-        "namespace": config.get_active_namespace(),
-    }
-    if topics:
-        memory["topics"] = topics
-    if entities:
-        memory["entities"] = entities
-    if config.user_id:
-        memory["user_id"] = config.user_id
-
     console.print()
     console.print(
         Panel(
@@ -154,11 +143,4 @@ def _interactive_prompt(
         console.print("[yellow]Cancelled.[/yellow]")
         return None
 
-    try:
-        client.create_memories([memory])
-    except Exception as e:
-        console.print(f"[red]Failed to store memory: {e}[/red]")
-        raise typer.Exit(1)
-
-    console.print("[bold green]Memory stored.[/bold green]")
     return text

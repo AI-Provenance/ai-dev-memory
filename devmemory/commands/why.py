@@ -259,13 +259,32 @@ def run_why(
     raw: bool = False,
     verbose: bool = False,
 ):
+    from devmemory.attribution.cloud_storage import CloudStorage
+
     config = DevMemoryConfig.load()
-    client = AMSClient(base_url=config.ams_endpoint, auth_token=config.get_auth_token())
+
+    # Check if API key is configured
+    if not config.api_key:
+        console.print("[yellow]⚠ This feature requires Cloud Edition[/yellow]")
+        console.print("[dim]Get an API key at: https://aiprove.org[/dim]")
+        console.print("")
+        console.print("Local mode features available now:")
+        console.print("  - devmemory attribution lookup <file>")
+        console.print("  - devmemory sync")
+        console.print("  - devmemory status")
+        raise typer.Exit(0)
+
+    # Use Cloud API
+    client = CloudStorage(api_key=config.api_key)
 
     try:
-        client.health_check()
+        health = client.health_check()
+        if health.get("status") != "ok":
+            console.print(f"[red]Cloud API unhealthy: {health.get('message', 'Unknown error')}[/red]")
+            raise typer.Exit(1)
     except Exception as e:
-        console.print(f"[red]Cannot reach AMS at {config.ams_endpoint}: {e}[/red]")
+        console.print(f"[red]Cannot reach Cloud API: {e}[/red]")
+        console.print("[dim]Check your API key or try again later.[/dim]")
         raise typer.Exit(1)
 
     # Verify the file exists in the repo
@@ -286,155 +305,50 @@ def run_why(
 
     console.print(f"\n[dim]Investigating:[/dim] {target_label}")
 
-    # Gather git context
-    git_log = _get_git_log_for_file(filepath, function)
-    blame_summary = _get_git_blame_summary(filepath, function)
-
-    git_context = ""
-    if git_log:
-        git_context += f"Recent commits:\n{git_log}\n\n"
-    if blame_summary:
-        git_context += f"Blame summary:\n{blame_summary}"
-
-    if not git_context.strip():
-        console.print("[yellow]No git history found for this file.[/yellow]")
-
-    # Search memory store
-    query = _build_query(filepath, function)
-    ns = config.namespace or None
-
-    console.print("[dim]Searching memories...[/dim]")
-
-    results: list[MemoryResult] = []
-    try:
-        results = client.search_memories(
-            text=query,
-            limit=limit * 3,
-            namespace=ns,
-        )
-    except Exception as e:
-        console.print(f"[yellow]Memory search failed: {e}[/yellow]")
-        console.print("[dim]Continuing with git history only...[/dim]")
-
-    # Also search with just the filename for broader matches
-    filename_only = filepath.rsplit("/", 1)[-1] if "/" in filepath else filepath
-    if results and filename_only != filepath:
-        try:
-            extra = client.search_memories(
-                text=f"{filename_only} why changes",
-                limit=limit,
-                namespace=ns,
-            )
-            seen_ids = {r.id for r in results}
-            for r in extra:
-                if r.id not in seen_ids:
-                    results.append(r)
-                    seen_ids.add(r.id)
-        except Exception:
-            pass
-
-    # Filter and sort
-    relevant = [r for r in results if r.score < DEFAULT_THRESHOLD]
-    if not relevant and results:
-        relevant = results[:limit]
-
-    relevant.sort(key=lambda r: r.score)
-    relevant = relevant[:limit]
-
-    if raw:
-        if not relevant and not git_context.strip():
-            console.print("[yellow]No information found for this file.[/yellow]")
-            raise typer.Exit(0)
-
-        if git_context.strip():
-            console.print(Panel(git_context.strip(), title="[bold]Git History[/bold]", border_style="dim"))
-
-        for i, r in enumerate(relevant, 1):
-            score_color = "green" if r.score < 0.4 else "yellow" if r.score < 0.65 else "red"
-            header = Text()
-            header.append(f"#{i} ", style="bold")
-            header.append(f"[{r.score:.3f}] ", style=score_color)
-            if r.topics:
-                header.append(f"({', '.join(r.topics[:5])}) ", style="dim cyan")
-            header.append(f"[{r.memory_type}]", style="dim")
-            console.print(Panel(r.text, title=header, border_style="dim", padding=(0, 1)))
-        return
-
-    # Synthesize answer
-    if not relevant and not git_context.strip():
-        console.print("[yellow]No memories or git history found for this file.[/yellow]")
-        console.print("[dim]The file may not have been synced yet. Try: devmemory sync --all[/dim]")
-        raise typer.Exit(0)
-
-    memories_for_llm = [
-        {
-            "text": r.text,
-            "type": r.memory_type,
-            "score": r.score,
-            "topics": r.topics,
-        }
-        for r in relevant
-    ]
-
-    console.print("[dim]Synthesizing explanation...[/dim]\n")
+    # Call Cloud API for explanation
+    console.print("[dim]Querying cloud API...[/dim]")
 
     try:
-        api_key, model, provider = get_llm_config()
-        if not api_key:
-            raise LLMError("no_api_key")
+        response = client.explain_why(filepath, function, limit, raw, verbose)
 
-        debug_mode = os.environ.get("DEVMEMORY_DEBUG", "").lower() in ("1", "true", "yes")
-        if verbose or debug_mode:
-            console.print(f"[dim]Using {provider} model: {model}[/dim]\n")
-        if debug_mode:
-            console.print(
-                f"[dim]Debug: Found {len(memories_for_llm)} memories, git_context length: {len(git_context)}[/dim]\n"
-            )
+        if response.get("error"):
+            console.print(f"[red]Why query failed: {response['error']}[/red]")
+            raise typer.Exit(1)
 
-        answer = _synthesize_why(
-            filepath,
-            function,
-            memories_for_llm,
-            git_context,
-            verbose=verbose,
-            debug_mode=debug_mode,
-            model=model,
-        )
+        # Display results from API
+        explanation = response.get("explanation", "No explanation available.")
+        history = response.get("history", [])
 
-        if debug_mode:
-            console.print(f"[dim]Debug: LLM returned answer of length: {len(answer) if answer else 0}[/dim]\n")
-    except Exception as e:
-        error_str = str(e)
-        if "no_api_key" in error_str:
-            console.print("[yellow]No API key found for answer synthesis.[/yellow]")
-            console.print(
-                "[dim]Set OPENAI_API_KEY or ANTHROPIC_API_KEY in .env or environment. Falling back to raw output...[/dim]\n"
-            )
+        if raw:
+            # Raw mode - show git history and API response
+            git_log = _get_git_log_for_file(filepath, function)
+            if git_log:
+                console.print(Panel(git_log, title="[bold]Git History[/bold]", border_style="dim"))
+            console.print(Panel(str(explanation), title="[bold]API Response[/bold]", border_style="dim"))
         else:
-            console.print(f"[yellow]Synthesis failed: {error_str}[/yellow]")
-            console.print("[dim]Falling back to raw output...[/dim]\n")
-        run_why(filepath=filepath, function=function, limit=limit, raw=True)
-        return
+            # Normal mode - show synthesized explanation
+            console.print("")
+            console.print(Panel(Markdown(explanation), title="[bold]Explanation[/bold]", border_style="green"))
 
-    if answer and answer.strip():
-        title = f"[bold green]Why {filepath}"
-        if function:
-            title += f" → {function}"
-        title += "[/bold green]"
+            if history:
+                console.print("")
+                console.print("[bold]History:[/bold]")
+                for item in history:
+                    console.print(f"  • {item}")
 
-        console.print(
-            Panel(
-                Markdown(answer),
-                title=title,
-                border_style="green",
-                padding=(1, 2),
-            )
-        )
-    else:
-        console.print("[yellow]Model returned no explanation.[/yellow]")
-        console.print("[dim]Falling back to raw memories and git history...[/dim]\n")
-        run_why(filepath=filepath, function=function, limit=limit, raw=True)
-        return
+        console.print("")
+        console.print(f"[dim]Quota remaining: {response.get('quota_remaining', 'N/A')}[/dim]")
 
-    if verbose:
-        _display_sources(relevant)
+    except Exception as e:
+        console.print(f"[red]Why query failed: {e}[/red]")
+
+        # Fallback to git history only
+        git_log = _get_git_log_for_file(filepath, function)
+        if git_log:
+            console.print("")
+            console.print("[dim]Showing git history only:[/dim]")
+            console.print(Panel(git_log, title="[bold]Git History[/bold]", border_style="dim"))
+            return  # Don't exit with error if we showed git history
+        else:
+            console.print("[yellow]No information available.[/yellow]")
+            raise typer.Exit(1)
