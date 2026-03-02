@@ -217,7 +217,12 @@ def test_run_why_raw_shows_git_history_when_search_fails(monkeypatch, capsys):
         lambda: type(
             "C",
             (),
-            {"ams_endpoint": "http://localhost:8000", "namespace": "", "get_auth_token": staticmethod(lambda: "")},
+            {
+                "ams_endpoint": "http://localhost:8000",
+                "namespace": "",
+                "api_key": "test_key",
+                "get_auth_token": staticmethod(lambda: ""),
+            },
         )(),
     )
 
@@ -226,12 +231,12 @@ def test_run_why_raw_shows_git_history_when_search_fails(monkeypatch, capsys):
             pass
 
         def health_check(self):
-            pass
+            return {"status": "ok"}
 
-        def search_memories(self, **kw):
-            raise Exception("AMS down")
+        def explain_why(self, filepath, function="", limit=15, raw=False, verbose=False):
+            raise Exception("API error")
 
-    monkeypatch.setattr(why, "AMSClient", FakeClient)
+    monkeypatch.setattr("devmemory.attribution.cloud_storage.CloudStorage", FakeClient)
 
     # Mock git cat-file to pass file check
     original_run = subprocess.run
@@ -263,7 +268,12 @@ def test_run_why_exits_for_missing_file(monkeypatch):
         lambda: type(
             "C",
             (),
-            {"ams_endpoint": "http://localhost:8000", "namespace": "", "get_auth_token": staticmethod(lambda: "")},
+            {
+                "ams_endpoint": "http://localhost:8000",
+                "namespace": "",
+                "api_key": "test_key",
+                "get_auth_token": staticmethod(lambda: ""),
+            },
         )(),
     )
 
@@ -272,9 +282,12 @@ def test_run_why_exits_for_missing_file(monkeypatch):
             pass
 
         def health_check(self):
-            pass
+            return {"status": "ok"}
 
-    monkeypatch.setattr(why, "AMSClient", FakeClient)
+        def explain_why(self, **kw):
+            return {"explanation": "test", "history": []}
+
+    monkeypatch.setattr("devmemory.attribution.cloud_storage.CloudStorage", FakeClient)
 
     def fake_run(cmd, **kwargs):
         raise subprocess.CalledProcessError(1, cmd)
@@ -285,13 +298,18 @@ def test_run_why_exits_for_missing_file(monkeypatch):
         why.run_why(filepath="nonexistent/file.py", raw=True)
 
 
-def test_run_why_exits_when_ams_unreachable(monkeypatch):
+def test_run_why_exits_when_api_unreachable(monkeypatch):
     monkeypatch.setattr(
         "devmemory.commands.why.DevMemoryConfig.load",
         lambda: type(
             "C",
             (),
-            {"ams_endpoint": "http://localhost:8000", "namespace": "", "get_auth_token": staticmethod(lambda: "")},
+            {
+                "ams_endpoint": "http://localhost:8000",
+                "namespace": "",
+                "api_key": "test_key",
+                "get_auth_token": staticmethod(lambda: ""),
+            },
         )(),
     )
 
@@ -302,7 +320,7 @@ def test_run_why_exits_when_ams_unreachable(monkeypatch):
         def health_check(self):
             raise ConnectionError("Connection refused")
 
-    monkeypatch.setattr(why, "AMSClient", FakeClient)
+    monkeypatch.setattr("devmemory.attribution.cloud_storage.CloudStorage", FakeClient)
 
     with pytest.raises(ClickExit):
         why.run_why(filepath="src/auth.py")

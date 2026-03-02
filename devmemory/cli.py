@@ -143,24 +143,14 @@ def stats(
 
 @app.command()
 def add(
-    text: str = typer.Argument(..., help="The memory text to store."),
+    text: str = typer.Argument("", help="The memory text to store."),
     memory_type: str = typer.Option("semantic", "--type", "-t", help="Memory type (episodic, semantic)."),
     topic: list[str] = typer.Option([], "--topic", help="Topic tags (can specify multiple)."),
     entity: list[str] = typer.Option([], "--entity", "-e", help="Entity tags (can specify multiple)."),
     interactive: bool = typer.Option(False, "--interactive", "-i", help="Interactive mode with prompts."),
 ):
-    """Add a memory directly (design decisions, gotchas, conventions, etc.). (Cloud Edition - Coming Soon)"""
-    from rich.console import Console
-
-    console = Console()
-    console.print("[yellow]⚠ This feature requires Cloud Edition[/yellow]")
-    console.print("[dim]Get an API key at: https://aiprove.org[/dim]")
-    console.print("")
-    console.print("Local mode features available now:")
-    console.print("  - devmemory attribution lookup <file>")
-    console.print("  - devmemory sync")
-    console.print("  - devmemory status")
-    # run_add(text=text, memory_type=memory_type, topics=topic or None, entities=entity or None, interactive=interactive)
+    """Add a memory directly (design decisions, gotchas, conventions, etc.)."""
+    run_add(text=text, memory_type=memory_type, topics=topic or None, entities=entity or None, interactive=interactive)
 
 
 @app.command()
@@ -209,40 +199,22 @@ def why(
     raw: bool = typer.Option(False, "--raw", help="Show raw memories and git history without LLM synthesis."),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show verbose explanation and sources."),
 ):
-    """Explain why a file (or function) exists and how it evolved. (Cloud Edition - Coming Soon)"""
-    from rich.console import Console
-
-    console = Console()
-    console.print("[yellow]⚠ This feature requires Cloud Edition[/yellow]")
-    console.print("[dim]Get an API key at: https://aiprove.org[/dim]")
-    console.print("")
-    console.print("Local mode features available now:")
-    console.print("  - devmemory attribution lookup <file>")
-    console.print("  - devmemory sync")
-    console.print("  - devmemory status")
-    # run_why(filepath=filepath, function=function, limit=limit, raw=raw, verbose=verbose)
+    """Explain why a file (or function) exists and how it evolved."""
+    run_why(filepath=filepath, function=function, limit=limit, raw=raw, verbose=verbose)
 
 
 @app.command()
 def summarize(
     view_type: str = typer.Option("project", "--type", "-t", help="Type of summary: project or architecture."),
     time_window: Optional[int] = typer.Option(None, "--time-window", "-w", help="Time window in days for summary."),
-    manual: bool = typer.Option(False, "--manual", "-m", help="Generate manual summary instead of creating AMS view."),
+    manual: bool = typer.Option(False, "--manual", "-m", help="Generate manual summary instead of creating view."),
     list_views: bool = typer.Option(False, "--list", "-l", help="List all summary views."),
     delete_view: Optional[str] = typer.Option(None, "--delete", "-d", help="Delete a specific summary view by ID."),
 ):
-    """Create and manage project-level summaries using Redis AMS summary views. (Cloud Edition - Coming Soon)"""
-    from rich.console import Console
-
-    console = Console()
-    console.print("[yellow]⚠ This feature requires Cloud Edition[/yellow]")
-    console.print("[dim]Get an API key at: https://aiprove.org[/dim]")
-    console.print("")
-    console.print("Local mode features available now:")
-    console.print("  - devmemory attribution lookup <file>")
-    console.print("  - devmemory sync")
-    console.print("  - devmemory status")
-    # run_summarize(view_type=view_type, time_window=time_window, manual=manual, list_views=list_views, delete_view=delete_view)
+    """Create and manage project-level summaries."""
+    run_summarize(
+        view_type=view_type, time_window=time_window, manual=manual, list_views=list_views, delete_view=delete_view
+    )
 
 
 @app.command()
@@ -250,18 +222,8 @@ def architecture(
     output: str = typer.Option(".devmemory/architecture-summary.md", "--output", "-o", help="Output file path."),
     time_window: int = typer.Option(30, "--time-window", "-w", help="Time window in days for analysis."),
 ):
-    """Generate comprehensive architecture summary document. (Cloud Edition - Coming Soon)"""
-    from rich.console import Console
-
-    console = Console()
-    console.print("[yellow]⚠ This feature requires Cloud Edition[/yellow]")
-    console.print("[dim]Get an API key at: https://aiprove.org[/dim]")
-    console.print("")
-    console.print("Local mode features available now:")
-    console.print("  - devmemory attribution lookup <file>")
-    console.print("  - devmemory sync")
-    console.print("  - devmemory status")
-    # run_generate_architecture_summary(output=output, time_window=time_window)
+    """Generate comprehensive architecture summary document."""
+    run_generate_architecture_summary(output=output, time_window=time_window)
 
 
 @app.command()

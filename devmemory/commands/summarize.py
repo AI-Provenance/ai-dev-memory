@@ -1,114 +1,23 @@
+"""Summarize command for DevMemory.
+
+This module provides project and architecture summary capabilities.
+All business logic is handled by the Cloud API.
+"""
+
 from __future__ import annotations
 
 import typer
 import os
+from typing import Optional
 
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
-from typing import Optional
-from datetime import datetime, timedelta
 
 from devmemory.core.config import DevMemoryConfig
-from devmemory.core.ams_client import AMSClient, SummaryView
-from devmemory.core.memory_formatter import generate_commit_summary
-from devmemory.core.git_ai_parser import get_commits_since
+from devmemory.attribution.cloud_storage import CloudStorage
 
 console = Console()
-
-PROJECT_SUMMARY_PROMPT = """\
-You are an AI architect analyzing a software project's evolution. 
-Given the project's commit history, generate a comprehensive summary that includes:
-
-1. **Architecture Overview**: High-level system design and components
-2. **Key Decisions**: Major architectural choices and their rationale
-3. **Evolution Timeline**: How the architecture has changed over time
-4. **Current State**: What the system looks like now
-5. **Technical Debt**: Known issues and areas for improvement
-6. **Patterns**: Recurring design patterns and conventions
-
-Focus on the "why" behind changes, not just "what" changed. 
-Highlight tradeoffs, lessons learned, and emerging patterns.
-"""
-
-ARCHITECTURE_SUMMARY_PROMPT = """\
-You are analyzing architectural decisions in a codebase. 
-Given commit messages, code changes, and context, identify and summarize:
-
-1. **Component Boundaries**: How the system is modularized
-2. **Data Flow**: How information moves through the system
-3. **Integration Points**: APIs, interfaces, and contracts
-4. **Scalability Approaches**: How the system handles growth
-5. **Failure Modes**: Common error patterns and recovery strategies
-
-Provide concrete examples from the actual code changes.
-"""
-
-
-def _create_project_summary_view(
-    client: AMSClient, namespace: str, time_window_days: Optional[int] = None, custom_prompt: Optional[str] = None
-) -> SummaryView:
-    """Create a summary view for project-level architecture analysis"""
-
-    view_config = {
-        "name": f"Project Architecture Summary - {namespace}",
-        "source": "long_term",
-        "group_by": ["namespace"],
-        "filters": {"namespace": {"eq": namespace}, "memory_type": {"eq": "semantic"}},
-        "prompt": custom_prompt or PROJECT_SUMMARY_PROMPT,
-        "model_name": "gpt-4o",  # Use a powerful model for summarization
-    }
-
-    if time_window_days:
-        view_config["time_window_days"] = time_window_days
-
-    return client.create_summary_view(view_config)
-
-
-def _create_architecture_evolution_view(
-    client: AMSClient, namespace: str, time_window_days: Optional[int] = None
-) -> SummaryView:
-    """Create a summary view for architecture evolution tracking"""
-
-    view_config = {
-        "name": f"Architecture Evolution - {namespace}",
-        "source": "long_term",
-        "group_by": ["namespace"],
-        "filters": {"namespace": {"eq": namespace}, "memory_type": {"eq": "semantic"}},
-        "prompt": ARCHITECTURE_SUMMARY_PROMPT,
-        "model_name": "gpt-4o",
-    }
-
-    if time_window_days:
-        view_config["time_window_days"] = time_window_days
-
-    return client.create_summary_view(view_config)
-
-
-def _generate_manual_project_summary(namespace: str, time_window_days: Optional[int] = None) -> str:
-    """Generate a project summary by analyzing recent commits"""
-
-    # Get recent commits
-    since_date = None
-    if time_window_days:
-        since_date = (datetime.now() - timedelta(days=time_window_days)).strftime("%Y-%m-%d")
-
-    commits = get_commits_since(since_sha=since_date) if since_date else get_commits_since()
-
-    if not commits:
-        return "No commits found in the specified time range."
-
-    # Generate summaries for key commits
-    summaries = []
-    for commit in commits[:10]:  # Limit to 10 most recent commits
-        summary = generate_commit_summary(commit, namespace=namespace)
-        if summary:
-            summaries.append(f"## {commit.subject}\n\n{summary['text']}\n")
-
-    if not summaries:
-        return "No summarizable commits found."
-
-    return "# Project Summary\n\n" + "\n".join(summaries)
 
 
 def run_summarize(
@@ -118,95 +27,95 @@ def run_summarize(
     list_views: bool = False,
     delete_view: Optional[str] = None,
 ):
-    """Create and manage project-level summaries using Redis AMS summary views."""
+    """Create and manage project-level summaries using Cloud API."""
 
     config = DevMemoryConfig.load()
-    client = AMSClient(base_url=config.ams_endpoint, auth_token=config.get_auth_token())
-
-    try:
-        client.health_check()
-    except Exception as e:
-        console.print(f"[red]Cannot reach AMS at {config.ams_endpoint}: {e}[/red]")
-        raise typer.Exit(1)
-
     namespace = config.get_active_namespace()
 
-    if list_views:
-        _list_summary_views(client)
-        return
-
-    if delete_view:
-        _delete_summary_view(client, delete_view)
-        return
-
-    if manual:
-        summary = _generate_manual_project_summary(namespace, time_window)
-        console.print(
-            Panel(
-                summary,
-                title="[bold green]Project Summary[/bold green]",
-                border_style="green",
-                padding=(1, 2),
-            )
-        )
-        return
-
-    # Create appropriate summary view
-    if view_type == "project":
-        view = _create_project_summary_view(client, namespace, time_window)
-        console.print(f"[green]Created project summary view: {view.name} (ID: {view.id})[/green]")
-    elif view_type == "architecture":
-        view = _create_architecture_evolution_view(client, namespace, time_window)
-        console.print(f"[green]Created architecture evolution view: {view.name} (ID: {view.id})[/green]")
-    else:
-        console.print(f"[red]Unknown view type: {view_type}[/red]")
-        raise typer.Exit(1)
-
-    console.print("[dim]Use `devmemory summarize --list` to see all views[/dim]")
-    console.print("[dim]Results will be available via Redis AMS summary view system[/dim]")
-
-
-def _list_summary_views(client: AMSClient):
-    """List all registered summary views"""
-    try:
-        views = client.list_summary_views()
-
-        if not views:
-            console.print("[yellow]No summary views found.[/yellow]")
+    with CloudStorage(api_key=config.api_key) as client:
+        if list_views:
+            _list_summary_views(client)
             return
 
-        table = Table(show_header=True, header_style="bold", box=None, padding=(0, 1))
-        table.add_column("ID", style="dim")
-        table.add_column("Name", style="cyan")
-        table.add_column("Source")
-        table.add_column("Group By")
-        table.add_column("Continuous")
+        if delete_view:
+            _delete_summary_view(client, delete_view)
+            return
 
-        for view in views:
-            table.add_row(
-                view.id,
-                view.name or "(unnamed)",
-                view.source,
-                ", ".join(view.group_by) if view.group_by else "-",
-                "✓" if view.continuous else "✗",
+        # Generate summary via API
+        result = client.summarize(
+            view_type=view_type,
+            namespace=namespace,
+            time_window=time_window,
+            manual=manual,
+        )
+
+        if result.get("error"):
+            console.print(f"[red]Error: {result.get('message', 'Unknown error')}[/red]")
+            raise typer.Exit(1)
+
+        if manual:
+            # Display manual summary
+            summary = result.get("data", {}).get("summary", "")
+            console.print(
+                Panel(
+                    summary,
+                    title="[bold green]Project Summary[/bold green]",
+                    border_style="green",
+                    padding=(1, 2),
+                )
             )
+        else:
+            # Display created view info
+            view = result.get("data", {}).get("view", {})
+            view_name = view.get("name", "Unknown")
+            console.print(f"[green]Created {view_type} summary view: {view_name}[/green]")
 
-        console.print("[bold]Summary Views[/bold]")
-        console.print(table)
+        console.print("[dim]Use `devmemory summarize --list` to see all views[/dim]")
 
-    except Exception as e:
-        console.print(f"[red]Failed to list summary views: {e}[/red]")
+
+def _list_summary_views(client: CloudStorage):
+    """List all registered summary views"""
+    result = client.list_summary_views()
+
+    if result.get("error"):
+        console.print(f"[red]Error: {result.get('message', 'Unknown error')}[/red]")
         raise typer.Exit(1)
 
+    views = result.get("data", {}).get("views", [])
 
-def _delete_summary_view(client: AMSClient, view_id: str):
+    if not views:
+        console.print("[yellow]No summary views found.[/yellow]")
+        return
+
+    table = Table(show_header=True, header_style="bold", box=None, padding=(0, 1))
+    table.add_column("ID", style="dim")
+    table.add_column("Name", style="cyan")
+    table.add_column("Source")
+    table.add_column("Group By")
+    table.add_column("Continuous")
+
+    for view in views:
+        table.add_row(
+            view.get("id", ""),
+            view.get("name", "(unnamed)"),
+            view.get("source", ""),
+            ", ".join(view.get("group_by", [])) if view.get("group_by") else "-",
+            "✓" if view.get("continuous") else "✗",
+        )
+
+    console.print("[bold]Summary Views[/bold]")
+    console.print(table)
+
+
+def _delete_summary_view(client: CloudStorage, view_id: str):
     """Delete a summary view"""
-    try:
-        client.delete_summary_view(view_id)
-        console.print(f"[green]Deleted summary view {view_id}[/green]")
-    except Exception as e:
-        console.print(f"[red]Failed to delete summary view: {e}[/red]")
+    result = client.delete_summary_view(view_id)
+
+    if result.get("error"):
+        console.print(f"[red]Error: {result.get('message', 'Unknown error')}[/red]")
         raise typer.Exit(1)
+
+    console.print(f"[green]Deleted summary view {view_id}[/green]")
 
 
 def run_generate_architecture_summary(
@@ -220,35 +129,16 @@ def run_generate_architecture_summary(
 
     console.print("[dim]Generating architecture summary...[/dim]")
 
-    # Generate manual summary first
-    manual_summary = _generate_manual_project_summary(namespace, time_window)
+    with CloudStorage(api_key=config.api_key) as client:
+        result = client.generate_architecture_summary(
+            output=output,
+            namespace=namespace,
+            time_window=time_window or 30,
+        )
 
-    # Create architecture evolution view
-    config = DevMemoryConfig.load()
-    client = AMSClient(base_url=config.ams_endpoint, auth_token=config.get_auth_token())
+        if result.get("error"):
+            console.print(f"[red]Error: {result.get('message', 'Unknown error')}[/red]")
+            raise typer.Exit(1)
 
-    try:
-        view = _create_architecture_evolution_view(client, namespace, time_window)
-        console.print(f"[dim]Created architecture view: {view.id}[/dim]")
-    except Exception as e:
-        console.print(f"[yellow]Could not create architecture view: {e}[/yellow]")
-        view = None
-
-    if os.path.dirname(output):
-        os.makedirs(os.path.dirname(output), exist_ok=True)
-
-    # Write comprehensive summary
-    with open(output, "w") as f:
-        f.write(f"# Architecture Summary\n\n")
-        f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n")
-        f.write(f"Namespace: {namespace}\n\n")
-        f.write(f"---\n\n")
-        f.write(manual_summary)
-        f.write(f"\n---\n\n")
-        f.write(f"## Architecture Evolution\n\n")
-        if view:
-            f.write(f"For detailed architecture evolution analysis, check Redis AMS summary view: {view.id}\n")
-        else:
-            f.write(f"Architecture evolution view could not be created.\n")
-
-    console.print(f"[green]Architecture summary written to {output}[/green]")
+        output_path = result.get("data", {}).get("output", output)
+        console.print(f"[green]Architecture summary written to {output_path}[/green]")
