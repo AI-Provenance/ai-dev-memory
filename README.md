@@ -13,6 +13,13 @@ DevMemory automatically captures AI code attribution and makes it queryable. Kno
 ## Quick Start
 
 ```bash
+# One-line install
+curl -sSL https://raw.githubusercontent.com/AI-Provenance/ai-dev-memory/main/scripts/install.sh | bash
+```
+
+**Or install manually:**
+
+```bash
 # 1. Install
 pip install devmemory
 
