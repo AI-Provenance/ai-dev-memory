@@ -1,12 +1,13 @@
+import subprocess
 import typer
 from rich.console import Console
 from rich.table import Table
 from rich.syntax import Syntax
 
-from devmemory.attribution.config import AttributionConfig
 from devmemory.attribution.sqlite_storage import SQLiteAttributionStorage
 from devmemory.core.config import DevMemoryConfig
 from devmemory.core.logging_config import get_logger
+from devmemory.core.git_ai_parser import _git_ai_prefix
 
 log = get_logger(__name__)
 console = Console()
@@ -30,6 +31,85 @@ def _get_namespace() -> str:
         return config.get_active_namespace()
     except Exception:
         return "default"
+
+
+def _get_blame_commit(filepath: str, lineno: int) -> str | None:
+    """Get the commit SHA that last modified a specific line using git-ai blame.
+
+    Uses git-ai blame instead of regular git blame because it integrates with
+    the AI attribution system and provides better information about AI-generated code.
+    """
+    try:
+        cmd = _git_ai_prefix() + ["blame", "-L", f"{lineno},{lineno}", filepath]
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        first_line = result.stdout.splitlines()[0] if result.stdout else ""
+        if first_line:
+            parts = first_line.split()
+            if parts and len(parts[0]) >= 8:
+                return parts[0]
+        return None
+    except (subprocess.CalledProcessError, FileNotFoundError, IndexError):
+        return None
+
+
+def _get_line_diff(filepath: str, lineno: int, commit_sha: str) -> str | None:
+    """Get the diff for the commit that modified a specific line."""
+    try:
+        result = subprocess.run(
+            ["git", "diff", f"{commit_sha}~1..{commit_sha}", "--", filepath],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return result.stdout.strip()
+    except subprocess.CalledProcessError:
+        return None
+
+
+def _highlight_line_in_diff(diff_text: str, target_lineno: int) -> str:
+    """Add context highlighting to show which line in the diff we're interested in."""
+    lines = diff_text.splitlines()
+    output_lines = []
+    in_hunk = False
+    current_new_line = 0
+
+    for line in lines:
+        if line.startswith("@@"):
+            in_hunk = True
+            parts = line.split()
+            if len(parts) >= 3:
+                new_info = parts[2]
+                if new_info.startswith("+"):
+                    try:
+                        parts_new = new_info[1:].split(",")
+                        current_new_line = int(parts_new[0])
+                    except (ValueError, IndexError):
+                        current_new_line = 0
+            output_lines.append(line)
+        elif in_hunk and line.startswith("+"):
+            if current_new_line == target_lineno:
+                output_lines.append(f">>> {line}  <-- TARGET LINE")
+            else:
+                output_lines.append(line)
+            current_new_line += 1
+        elif in_hunk and not line.startswith("-"):
+            if line != "":
+                if current_new_line == target_lineno:
+                    output_lines.append(f">>> {line}  <-- TARGET LINE")
+                else:
+                    output_lines.append(line)
+                current_new_line += 1
+            else:
+                output_lines.append(line)
+        else:
+            output_lines.append(line)
+
+    return "\n".join(output_lines)
 
 
 def _show_mode():
@@ -65,7 +145,7 @@ def list_attributions(
 
         if not rows:
             console.print(f"[yellow]No attributions found for namespace '{ns}'[/yellow]")
-            console.print(f"[dim]Hint: run devmemory sync first[/dim]")
+            console.print("[dim]Hint: run devmemory sync first[/dim]")
             raise typer.Exit(0)
 
         table = Table(title=f"Attributions in '{ns}' ({len(rows)} files)")
@@ -130,31 +210,31 @@ def show_attribution(
             console.print(f"[red]No attribution found for {filepath}@{commit_sha[:8]}[/red]")
             raise typer.Exit(1)
 
-            console.print(f"\n[bold]File:[/bold] {filepath}")
-            console.print(f"[bold]Namespace:[/bold] {ns}")
-            console.print(f"[bold]Commit:[/bold] {commit_sha[:8]}")
-            console.print()
+        console.print(f"\n[bold]File:[/bold] {filepath}")
+        console.print(f"[bold]Namespace:[/bold] {ns}")
+        console.print(f"[bold]Commit:[/bold] {commit_sha[:8]}")
+        console.print()
 
-            table = Table(title="Line Attribution")
-            table.add_column("Lines", style="cyan")
-            table.add_column("Author", style="yellow")
-            table.add_column("Tool", style="green")
-            table.add_column("Model", style="magenta")
-            table.add_column("Prompt ID", style="dim")
+        table = Table(title="Line Attribution")
+        table.add_column("Lines", style="cyan")
+        table.add_column("Author", style="yellow")
+        table.add_column("Tool", style="green")
+        table.add_column("Model", style="magenta")
+        table.add_column("Prompt ID", style="dim")
 
-            for row in rows:
-                line_start, line_end, author, tool, model, prompt_id = row
-                lines = f"{line_start}-{line_end}" if line_start != line_end else str(line_start)
-                prompt_display = (prompt_id[:12] + "...") if prompt_id else "-"
-                table.add_row(
-                    lines,
-                    author or "unknown",
-                    tool or "-",
-                    model or "-",
-                    prompt_display,
-                )
+        for row in rows:
+            line_start, line_end, author, tool, model, prompt_id = row
+            lines = f"{line_start}-{line_end}" if line_start != line_end else str(line_start)
+            prompt_display = (prompt_id[:12] + "...") if prompt_id else "-"
+            table.add_row(
+                lines,
+                author or "unknown",
+                tool or "-",
+                model or "-",
+                prompt_display,
+            )
 
-            console.print(table)
+        console.print(table)
 
     finally:
         storage.close()
@@ -166,6 +246,7 @@ def lookup_line(
     lineno: int = typer.Argument(..., help="Line number"),
     commit_sha: str = typer.Argument(None, help="Commit SHA (auto-detected if not provided)"),
     namespace: str = typer.Option(None, "--namespace", "-n", help="Namespace"),
+    show_diff: bool = typer.Option(False, "--diff", "-d", help="Show git diff for the line"),
 ):
     """Look up AI attribution for a specific line (uses latest commit by default)."""
     ns = namespace or _get_namespace()
@@ -178,10 +259,11 @@ def lookup_line(
 
     try:
         if commit_sha:
-            # Explicit commit provided - use it
             result = storage.get_attribution(ns, filepath, commit_sha, lineno)
+            if not result:
+                console.print(f"[red]No attribution found for {filepath}:{lineno}@{commit_sha[:8]}[/red]")
+                raise typer.Exit(1)
         else:
-            # Use latest attribution (recommended)
             result = storage.get_latest_attribution(ns, filepath, lineno)
             if not result:
                 console.print(f"[red]No attribution found for {filepath}:{lineno}[/red]")
@@ -195,9 +277,9 @@ def lookup_line(
         console.print()
 
         if result.get("author") == "ai":
-            console.print(f"[green]✓ AI-generated[/green]")
+            console.print("[green]✓ AI-generated[/green]")
         else:
-            console.print(f"[yellow]Human-written[/yellow]")
+            console.print("[yellow]Human-written[/yellow]")
 
         if result.get("tool"):
             console.print(f"[bold]Tool:[/bold] {result['tool']}")
@@ -208,6 +290,26 @@ def lookup_line(
         if result.get("author_email"):
             console.print(f"[bold]Author:[/bold] {result['author_email']}")
         console.print(f"[bold]Confidence:[/bold] {result.get('confidence', 0.95)}")
+
+        if show_diff:
+            console.print(f"\n[bold cyan]═══ Git Diff for Line {lineno} ═══[/bold cyan]")
+
+            blame_commit = _get_blame_commit(filepath, lineno)
+            if not blame_commit:
+                console.print("[yellow]⚠ Could not determine commit for this line[/yellow]")
+                raise typer.Exit(0)
+
+            console.print(f"[dim]Commit that modified line {lineno}: {blame_commit[:8]}[/dim]")
+
+            diff_text = _get_line_diff(filepath, lineno, blame_commit)
+            if not diff_text:
+                console.print("[yellow]⚠ Could not get diff for this commit[/yellow]")
+                raise typer.Exit(0)
+
+            highlighted_diff = _highlight_line_in_diff(diff_text, lineno)
+
+            syntax = Syntax(highlighted_diff, "diff", theme="monokai", line_numbers=False)
+            console.print(syntax)
 
     finally:
         storage.close()
