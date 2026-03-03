@@ -4,66 +4,71 @@
 [![PyPI](https://img.shields.io/pypi/v/devmemory.svg)](https://pypi.org/project/devmemory/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-**AI code attribution that answers "why?" — for developers and AI agents.**
+**Track which AI wrote which line of code.**
 
-Built on [Git AI](https://github.com/git-ai-project/git-ai) for capture.
-
-**Local mode:** SQLite storage (free, works offline)  
-**Cloud mode:** API-based advanced features (coming soon)
-
-> Status: currently in Beta.
-
-
-**AI code attribution that answers "why?" — for developers and AI agents.**
-
-DevMemory tracks which AI tool wrote which line of code, then makes that knowledge searchable. Ask "why did we use this pattern?" and get answers backed by commits, prompts, and context.
+DevMemory automatically captures AI code attribution and makes it queryable. Know which AI tool wrote what, see diffs, and integrate with Sentry for AI-attributed error tracking.
 
 ---
 
-## Quick Install
-
-```bash
-# One-line install (local mode)
-curl -sSL https://raw.githubusercontent.com/AI-Provenance/ai-dev-memory/main/scripts/install.sh | bash
-```
-
-Then in your project:
-```bash
-devmemory install --mode local
-```
-
----
-
-## Choose Your Setup
-
-### Option 1: Local (SQLite) — Free, No Infrastructure
-
-For tracking AI code attributions locally without external services.
+## Quick Start
 
 ```bash
 # 1. Install
 pip install devmemory
 
-# 2. Set up in your repo
+# 2. Setup in your repo (one-time)
 cd your-project
 devmemory install --mode local
 
-# 3. Start coding — commits auto-sync
-git commit -m "feat: new login"  # AI attribution tracked automatically
-devmemory attribution lookup path/to/file.py  # See who wrote what
+# 3. That's it! Make commits normally
+git commit -m "feat: new login"
+# ✓ AI attribution auto-synced to SQLite
+
+# 4. Query attributions anytime
+devmemory attribution lookup src/main.py 42
+devmemory attribution lookup src/main.py 42 --diff  # Show git diff
 ```
 
-**What's included:**
-- AI code line attribution (SQLite)
-- Git hooks for auto-sync
-- `devmemory attribution` commands
-- Sentry error tracking with AI attributions
+**Everything is automatic** — no manual sync needed. After installation, every commit automatically syncs AI attribution data to local SQLite.
 
-### Sentry Integration
+---
 
-When an error hits Sentry, see which AI tool and model wrote the code that caused it.
+## What You Get
 
-**Python:**
+### 🔍 **Line Attribution**
+See who wrote any line of code:
+```bash
+devmemory attribution lookup src/auth.py 15
+
+# Output:
+# File: src/auth.py
+# Line: 15
+# Commit: abc123
+# ✓ AI-generated
+# Tool: opencode
+# Model: opencode/trinity-large
+# Prompt ID: 7a66807c780f
+```
+
+### 📝 **Git Diff Integration**
+See the actual changes when the line was added:
+```bash
+devmemory attribution lookup src/auth.py 15 --diff
+
+# Shows:
+# - Which commit modified the line
+# - Full git diff with syntax highlighting
+# - Target line marked with "<<< TARGET LINE"
+```
+
+### 📜 **Attribution History**
+View all commits that touched a file:
+```bash
+devmemory attribution history src/auth.py
+```
+
+### 🚨 **Sentry Integration**
+Errors in production show which AI wrote the buggy code:
 ```python
 import sentry_sdk
 from devmemory.sentry import create_before_send
@@ -74,108 +79,99 @@ sentry_sdk.init(
 )
 ```
 
-**Node.js / Next.js:**
-```bash
-npm install @aiprovenance/sentry
-```
-
-```javascript
-import { createDevMemoryBeforeSend } from "@aiprovenance/sentry";
-
-Sentry.init({
-  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
-  beforeSend(event, hint) {
-    return createDevMemoryBeforeSend()(event, hint);
-  },
-});
-```
-
-Auto-detects repoId from git remote or `DEVMEMORY_REPO_ID` env var.
-
-This adds `ai_model`, `ai_tool`, `author`, `commit_sha`, and other tags to every Sentry event.
+Sentry events automatically include:
+- `ai_tool` — which AI wrote the code
+- `ai_model` — which model was used
+- `commit_sha` — which commit introduced it
+- `prompt_id` — link back to the original prompt
 
 ---
 
-### Option 2: Cloud — Advanced Features (Coming Soon)
+## Installation Details
 
-> **Note:** Cloud mode with advanced features is coming soon. Sign up at [aiprove.org](https://aiprove.org) to get notified.
+### Prerequisites
+- Python 3.10+
+- [Git AI](https://usegitai.com/) — auto-installs AI attribution tracking
 
-For teams who want semantic search, team analytics, and AI-powered insights.
+### Setup Steps
 
 ```bash
-# 1. Install
+# Install DevMemory
 pip install devmemory
 
-# 2. Get API key at aiprove.org
-# 3. Set up in your repo
-cd your-project
-devmemory install --mode cloud --api-key YOUR_API_KEY
+# Initialize in your repo
+devmemory install --mode local
 
-# Start using
-devmemory why src/auth.py          # Ask why a file looks this way
-devmemory search "how do we auth?" # Semantic search
-devmemory stats                    # AI vs Human code stats
+# What this does:
+# ✓ Installs git hooks (auto-sync on every commit)
+# ✓ Creates .devmemory/attributions.db (SQLite)
+# ✓ Configures git-ai for prompt capture
 ```
 
-**What's included:**
-- Everything in Local mode
-- Semantic memory search
-- Team code statistics
-- Cursor/Claude agent integration
-- Context briefings on branch switch
+### After Installation
 
-> **Sentry integration (Cloud):** Error tracking with AI attribution is coming soon — requires API call to enrich events.
+Just work normally:
+- Make changes with AI tools (Cursor, Claude, OpenCode etc.)
+- Git AI captures attribution automatically
+- DevMemory syncs to SQLite after each commit
+- Query anytime with `devmemory attribution` commands
 
----
-
-## Why DevMemory?
-
-| For Developers | For AI Agents |
-|----------------|----------------|
-| "Why did we choose this pattern?" | Start with repo context, not from scratch |
-| "Who wrote this — AI or human?" | Remember what previous agents learned |
-| Team AI vs Human code stats | Reuse knowledge across sessions |
-
-**With Sentry Integration:** Errors automatically include AI attribution data — see exactly which AI tool and model generated the code that caused the crash.
+**No manual sync needed** — it's all automatic!
 
 ---
 
 ## Commands
 
-### Local Mode
+### Attribution Commands
 | Command | Description |
 |---------|-------------|
-| `devmemory attribution lookup <file>` | See who wrote each line |
-| `devmemory attribution history <file>` | View attribution history |
-| `devmemory sync` | Sync Git AI notes to SQLite |
-| `devmemory status` | Check system health |
+| `devmemory attribution lookup <file> <line>` | Who wrote this line? |
+| `devmemory attribution lookup <file> <line> --diff` | Show git diff for this line |
+| `devmemory attribution show <file>` | All attributions for a file |
+| `devmemory attribution list` | List all tracked files |
+| `devmemory attribution history <file>` | Commit history for a file |
 
-### Cloud Mode
+### Utility Commands
 | Command | Description |
 |---------|-------------|
-| `devmemory why <file>` | Explain why a file/function looks this way |
-| `devmemory search <query>` | Semantic search across all memories |
-| `devmemory stats` | AI vs Human code contribution |
-| `devmemory attribution lookup <file>` | See who wrote each line |
-| `devmemory attribution history <file>` | View attribution history |
-| `devmemory sync` | Sync Git AI notes to Cloud |
 | `devmemory status` | Check system health |
+| `devmemory sync --latest` | Manual sync (only if needed) |
+
+---
+
+## How It Works
+
+1. **Capture**: [Git AI](https://usegitai.com/) tracks which AI tool wrote each line
+2. **Store**: DevMemory stores attributions in local SQLite (`.devmemory/attributions.db`)
+3. **Auto-sync**: Git hooks sync after every commit — zero manual work
+4. **Query**: CLI commands query SQLite instantly, offline
+
+**Data stays local** — works offline, no cloud required.
+
+---
+
+## Cloud Mode COMING SOON...
+
+For teams wanting advanced features:
+- Semantic search across codebase
+- Team analytics dashboard
+- AI agent context integration
+- Shared attribution database
+
+```bash
+devmemory install --mode cloud --api-key YOUR_KEY
+```
+
+Get API key at [aiprove.org](https://aiprove.org)
 
 ---
 
 ## Requirements
 
-- Python 3.10+
-- [Git AI](https://usegitai.com/) — for capturing AI code attribution
-- (Cloud mode) API key from [aiprove.org](https://aiprove.org)
+- **Python 3.10+**
+- **Git AI** — auto-installed during setup
+- **SQLite** — included with Python
 
 ---
 
-## Learn More
-
-- [Documentation](https://docs.aiprove.org)
-- [GitHub](https://github.com/AI-Provenance/ai-dev-memory)
-
----
-
-**Stop re-explaining your code. Let DevMemory remember.**
+**Stop wondering "who wrote this?" — DevMemory knows.**
